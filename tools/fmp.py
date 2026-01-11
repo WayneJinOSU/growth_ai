@@ -2,6 +2,7 @@ import requests
 from typing import Dict, List, Optional, Any
 import config
 
+
 class FMPClient:
     def __init__(self):
         self.api_key = config.FMP_API_KEY
@@ -11,17 +12,17 @@ class FMPClient:
     def _get(self, endpoint: str, params: Optional[Dict] = None) -> Any:
         if not self.api_key:
             raise ValueError("FMP_API_KEY is not set")
-        
+
         # 修复可变默认参数问题
         if params is None:
             params = {}
         else:
             # 拷贝一份，避免修改外部传入的字典
             params = params.copy()
-            
+
         url = f"{self.base_url}/{endpoint}"
         params['apikey'] = self.api_key
-        
+
         try:
             response = requests.get(url, params=params)
             response.raise_for_status()
@@ -58,7 +59,7 @@ class FMPClient:
         if period == 'quarter':
             params['period'] = 'quarter'
         return self._get("key-metrics", params=params) or []
-        
+
     def get_ratios_ttm(self, ticker: str) -> Optional[Dict]:
         data = self._get("ratios-ttm", params={'symbol': ticker})
         if data:

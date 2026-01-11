@@ -15,15 +15,17 @@ from tools.llm import LLMClient
 from tools.search import SearchClient
 from core.data_models import CompanyData, AnalysisReport
 
-def analyze_ticker(ticker: str, fmp: FMPClient, llm: LLMClient, search: SearchClient, force_deep_dive: bool = False) -> CompanyData:
+
+def analyze_ticker(ticker: str, fmp: FMPClient, llm: LLMClient, search: SearchClient,
+                   force_deep_dive: bool = False) -> CompanyData:
     print(f"\n--- Analyzing {ticker} ---")
     data = CompanyData(ticker=ticker)
-    
+
     # Phase 1: Iron Gate
     print(f"[{ticker}] Phase 1: Iron Gate...")
     ig = IronGate(fmp)
     data.iron_gate = ig.analyze(ticker)
-    
+
     quote = fmp.get_quote(ticker)
     if quote:
         data.company_name = quote.get('name')
@@ -42,7 +44,7 @@ def analyze_ticker(ticker: str, fmp: FMPClient, llm: LLMClient, search: SearchCl
     # We need a description. FMP profile has description.
     profile = fmp.get_profile(ticker)
     description = profile['description'] if profile else "Technology company"
-    
+
     data.identifier = ident.identify(ticker, description)
     print(f"[{ticker}] Identified as {data.identifier.business_model} with KPIs: {data.identifier.specific_kpis}")
 
@@ -59,17 +61,18 @@ def analyze_ticker(ticker: str, fmp: FMPClient, llm: LLMClient, search: SearchCl
 
     return data
 
+
 def save_report(data: CompanyData):
     if not data.tribunal:
         return
 
     timestamp = datetime.now().strftime("%Y-%m-%d")
     filename = f"REPORT_{data.ticker}_{timestamp}.md"
-    
+
     report_content = f"""# MGP V3.0 Analysis: {data.ticker}
 **Date:** {timestamp}
 **Verdict:** {data.tribunal.decision.value} ({data.tribunal.confidence.value} Confidence)
-**Price:** ${data.current_price} | **Market Cap:** ${data.market_cap/1e9:.2f}B
+**Price:** ${data.current_price} | **Market Cap:** ${data.market_cap / 1e9:.2f}B
 
 ## Executive Summary
 {data.tribunal.rationale}
@@ -111,6 +114,7 @@ def save_report(data: CompanyData):
         f.write(report_content)
     print(f"Report saved to {filename}")
 
+
 def main():
     parser = argparse.ArgumentParser(description="Mahaney Growth Protocol V3.0")
     parser.add_argument("--tickers", type=str, default="AAPL", help="Comma-separated list of tickers")
@@ -122,11 +126,11 @@ def main():
         return
 
     tickers = [t.strip().upper() for t in args.tickers.split(",")]
-    
+
     fmp = FMPClient()
     llm = LLMClient()
     search = SearchClient()
-    
+
     results = []
 
     for ticker in tickers:
@@ -144,6 +148,6 @@ def main():
         json.dump(results, f, indent=2)
     print("All analyses complete. Saved to results.json.")
 
+
 if __name__ == "__main__":
     main()
-

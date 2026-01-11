@@ -2,18 +2,18 @@
   {
     "ticker": "AAPL",
     "company_name": "Apple Inc.",
-    "current_price": 259.04,
-    "market_cap": 3827666481120,
+    "current_price": 259.37,
+    "market_cap": 3832542677610,
     "iron_gate": {
-      "revenue_cagr_5y": 0.03275991627577457,
-      "revenue_growth_current_q": 0.07938480985989677,
-      "revenue_growth_prev_y_q": 0.07938480985989677,
+      "revenue_cagr_5y": 0.01812535743479393,
+      "revenue_growth_current_q": null,
+      "revenue_growth_prev_y_q": null,
       "peg_ratio": null,
       "gross_margin_slope": null,
       "opex_growth": null,
       "operating_leverage": null,
       "passed": false,
-      "fail_reason": "Low Growth: CAGR 3.3%, Q_Growth 7.9%"
+      "fail_reason": "Insufficient quarterly data"
     },
     "identifier": null,
     "intelligence": null,
