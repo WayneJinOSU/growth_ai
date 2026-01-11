@@ -6,7 +6,7 @@ import config
 
 class LLMClient:
     def __init__(self):
-        self.client = OpenAI(api_key=config.OPENAI_API_KEY)
+        self.client = OpenAI(base_url="https://openrouter.ai/api/v1",api_key=config.OPENAI_API_KEY)
         self.model = "google/gemini-3-pro-preview" # or gpt-4-turbo
 
     def analyze_text(self, prompt: str, system_prompt: str = "You are a financial analyst.") -> str:

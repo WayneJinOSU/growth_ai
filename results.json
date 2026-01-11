@@ -1,23 +1,48 @@
 [
   {
-    "ticker": "AAPL",
-    "company_name": "Apple Inc.",
-    "current_price": 259.37,
-    "market_cap": 3832542677610,
+    "ticker": "DUOL",
+    "company_name": null,
+    "current_price": null,
+    "market_cap": null,
     "iron_gate": {
-      "revenue_cagr_5y": 0.01812535743479393,
-      "revenue_growth_current_q": 0.07938480985989677,
-      "revenue_growth_prev_y_q": 0.0,
-      "peg_ratio": null,
+      "revenue_cagr_5y": 0.43950163624600047,
+      "revenue_growth_current_q": 0.4108071902551481,
+      "revenue_growth_prev_y_q": 0.399421612509446,
+      "peg_ratio": 0.5101203102367672,
       "gross_margin_slope": null,
       "opex_growth": null,
       "operating_leverage": null,
-      "passed": false,
-      "fail_reason": "Low Growth: CAGR 1.8%, Q_Growth 7.9%"
+      "passed": true,
+      "fail_reason": null
     },
-    "identifier": null,
-    "intelligence": null,
-    "tribunal": null,
+    "identifier": {
+      "business_model": "SaaS",
+      "specific_kpis": [
+        "Daily Active Users (DAU)",
+        "Paid Subscriber Penetration",
+        "Total Bookings"
+      ],
+      "bear_case_hook": "Generative AI capabilities (LLMs) rendering gamified rote language learning obsolete or significantly reducing the value proposition of human-curated lessons."
+    },
+    "intelligence": {
+      "kpi_values": {
+        "Daily Active Users (DAU)": "40.5 million (Q4 2024)",
+        "Paid Subscriber Penetration": "8.5% (Q3 2024)",
+        "Total Bookings": "$271.6 million (Q1 2025)"
+      },
+      "management_integrity": "Duolingo management appears to practice **conservative guidance**, evidenced by their Q3 2025 performance where they delivered record results and subsequently raised their full-year bookings outlook. However, they prioritize transparency over protecting the stock price, as seen when they honestly disclosed anticipated deceleration in Q4 user growth, triggering a 25% sell-off despite the financial beat. This indicates a pattern of under-promising and over-delivering on financials, while remaining realistic about operational headwinds.",
+      "product_moat": "Duolingo\u2019s competitive moat is **widening**, driven by a massive proprietary dataset that fuels an AI-powered flywheel of personalization and operational efficiency, creating a barrier to entry that is increasingly difficult for rivals to replicate. This data advantage is facilitating successful expansion into new verticals, specifically **Music and Chess**, which leverage the company's proven gamified infrastructure to drive further user engagement and growth.",
+      "insider_activity": "Insiders are engaging in significant, broad-based selling, with key executives\u2014including the CTO, CFO, and General Counsel\u2014consistently offloading shares as the stock price plummeted from highs of ~$525 to recent lows of ~$170. While the regularity of these transactions (such as Co-founder Severin Hacker's monthly 10,000-share blocks) suggests routine pre-scheduled 10b5-1 plans, the continued liquidation at depressed valuations without significant open-market buying signals a lack of urgency to \"buy the dip.\"",
+      "dislocation_context": "Based on the provided text and financial data, the recent price decline in Duolingo (DUOL) appears to be a **True Discount (Valuation Reset)** rather than a \"Fake Discount\" caused by broken fundamentals.\n\nHere is the detailed breakdown of the analysis:\n\n### 1. The Nature of the Drop: Valuation Reset & Guidance\nThe stock is down approximately **28%** since its November 5th earnings report. The primary driver for this sell-off was **soft guidance for the fourth quarter**, specifically regarding lower growth in bookings.\n*   **Why this isn't \"Broken Fundamentals\":** The company actually *exceeded* expectations for revenue and subscribers in the reported quarter. The drop was a reaction to future expectations (guidance) rather than current operational failure.\n*   **Valuation Compression:** The text notes that the stock previously held a \"premium valuation.\" The sell-off has compressed this valuation significantly, bringing the Price-to-Free-Cash-Flow (P/FCF) multiple down to **26x**.\n\n### 2. Fundamental Health Check (Strong)\nContrary to a \"Fake Discount\" scenario where a business is losing customers or cash, DUOL\u2019s core metrics remain robust:\n*   **User Growth:** Daily Active Users (DAU) grew **36% YoY** to 50 million, and Monthly Active Users (MAU) grew **20% YoY** to 135 million.\n*   **Profitability:** Trailing-12-month Free Cash Flow grew **52% YoY**.\n*   **Retention:** CFO Matthew Skaruppa confirmed that \"Broader platform retention... remains strong. No real changes in that.\"\n\n### 3. Macro and Sector Factors\nThere is evidence of broader market rotation contributing to the decline, supporting the \"True Discount\" thesis:\n*   The text highlights significant selling activity in the **Information Technology** and **Consumer Discretionary** sectors.\n*   DUOL sits at the intersection of these two sectors (Consumer App/Tech). The text notes that selling in the IT sector was notable, suggesting DUOL was caught in a wider \"risk-off\" move regarding high-growth tech stocks.\n\n### Conclusion: True Discount\nThe decline is driven by a **recalibration of valuation** due to softer forward guidance and **sector rotation** out of high-growth tech, rather than a fundamental breakage in the business model.\n\n*   **Not Broken:** User engagement (DAU/MAU) and Cash Flow are growing rapidly.\n*   **Not Competitor Driven:** There is no mention of users fleeing to a rival platform; retention remains stable.\n\n**Verdict:** The text frames this as a buying opportunity (\"True Discount\") created by a market overreaction to guidance, resulting in a more attractive entry point (P/FCF of 26) for a company with strong underlying growth."
+    },
+    "tribunal": {
+      "decision": "STRONG BUY",
+      "confidence": "High",
+      "rationale": "Duolingo demonstrates elite execution with >40% revenue growth and accelerating user metrics while trading at an exceptionally attractive PEG ratio of 0.51. The recent sell-off represents a confirmed 'True Discount' driven by conservative guidance recalibration and macro rotation, offering a valuation mismatch for a company with widening moats and intact fundamentals.",
+      "growth_thesis_intact": true,
+      "valuation_fit": true,
+      "is_true_discount": true
+    },
     "error": null
   }
 ]

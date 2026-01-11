@@ -69,10 +69,20 @@ def save_report(data: CompanyData):
     timestamp = datetime.now().strftime("%Y-%m-%d")
     filename = f"REPORT_{data.ticker}_{timestamp}.md"
 
+    # 安全获取可能为 None 的值
+    price_str = f"${data.current_price:.2f}" if data.current_price else "N/A"
+    market_cap_str = f"${data.market_cap / 1e9:.2f}B" if data.market_cap else "N/A"
+    cagr_str = f"{data.iron_gate.revenue_cagr_5y:.1%}" if data.iron_gate.revenue_cagr_5y is not None else "N/A"
+    q_growth_str = f"{data.iron_gate.revenue_growth_current_q:.1%}" if data.iron_gate.revenue_growth_current_q is not None else "N/A"
+    peg_str = f"{data.iron_gate.peg_ratio:.2f}" if data.iron_gate.peg_ratio else "N/A"
+    margin_slope_str = f"{data.iron_gate.gross_margin_slope:.4f}" if data.iron_gate.gross_margin_slope is not None else "N/A"
+    opex_str = "Passed" if data.iron_gate.operating_leverage else (
+        "Failed" if data.iron_gate.operating_leverage is False else "N/A")
+
     report_content = f"""# MGP V3.0 Analysis: {data.ticker}
 **Date:** {timestamp}
 **Verdict:** {data.tribunal.decision.value} ({data.tribunal.confidence.value} Confidence)
-**Price:** ${data.current_price} | **Market Cap:** ${data.market_cap / 1e9:.2f}B
+**Price:** {price_str} | **Market Cap:** {market_cap_str}
 
 ## Executive Summary
 {data.tribunal.rationale}
@@ -81,11 +91,11 @@ def save_report(data: CompanyData):
 
 ## Phase 1: The Iron Gate (Quantitative)
 * **Status**: {"Passed" if data.iron_gate.passed else "Failed"}
-* **5-Year CAGR**: {data.iron_gate.revenue_cagr_5y:.1%}
-* **Current Q Growth**: {data.iron_gate.revenue_growth_current_q:.1%}
-* **PEG Ratio**: {data.iron_gate.peg_ratio if data.iron_gate.peg_ratio else 'N/A'}
-* **Gross Margin Slope**: {data.iron_gate.gross_margin_slope:.4f}
-* **OpEx Check**: {"Passed" if data.iron_gate.operating_leverage else "Failed"}
+* **CAGR**: {cagr_str}
+* **Current Q Growth**: {q_growth_str}
+* **PEG Ratio**: {peg_str}
+* **Gross Margin Slope**: {margin_slope_str}
+* **OpEx Check**: {opex_str}
 
 ## Phase 2: DNA & KPIs
 * **Business Model**: {data.identifier.business_model.value}
@@ -117,7 +127,7 @@ def save_report(data: CompanyData):
 
 def main():
     parser = argparse.ArgumentParser(description="Mahaney Growth Protocol V3.0")
-    parser.add_argument("--tickers", type=str, default="AAPL", help="Comma-separated list of tickers")
+    parser.add_argument("--tickers", type=str, default="DUOL", help="Comma-separated list of tickers")
     parser.add_argument("--force", action="store_true", help="Force deep dive even if Iron Gate fails")
     args = parser.parse_args()
 

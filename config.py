@@ -5,7 +5,7 @@ load_dotenv()
 
 # ========== API Keys ==========
 FMP_API_KEY = os.getenv("FMP_API_KEY", "yiQrRNxbbe4TofnvMPGPz62QSTuT6Pbe")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "https://openrouter.ai/api/v1")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "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")
 TAVILY_API_KEY = os.getenv("TAVILY_API_KEY", "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")
 
 if not FMP_API_KEY:
