@@ -14,8 +14,6 @@
         *   **微利豁免**：净利率 < 3% 的微利企业，强制走未盈利逻辑（看运营效率），避免 PEG 虚高导致误杀。
     *   **筛选流程**：
 
-    <img src="stastic/diagram-2026-01-12-163254.png" width="40%"/>
-
     ```mermaid
     graph TD
         Start[开始分析 Ticker] --> CheckData{年报数量 >= 2?}
