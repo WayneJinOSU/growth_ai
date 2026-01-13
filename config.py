@@ -5,7 +5,7 @@ load_dotenv()
 
 # ========== API Keys ==========
 FMP_API_KEY = os.getenv("FMP_API_KEY", "yiQrRNxbbe4TofnvMPGPz62QSTuT6Pbe")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "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")
 TAVILY_API_KEY = os.getenv("TAVILY_API_KEY", "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")
 
 if not FMP_API_KEY:
@@ -34,9 +34,10 @@ GROWTH_THRESHOLD_QUARTER = 0.20    # 季度同比增速最低要求 (20%)
 
 # 减速预警：前期增速阈值 & 容许下降比例
 DECEL_PREV_GROWTH_THRESHOLD = 0.40  # 只有当前期增速 > 40% 时才检测减速
-DECEL_DROP_RATIO = 0.5              # 增速下降超过 50% 触发警报
+DECEL_DROP_RATIO = 0.7              # 增速下降超过 50% 触发警报
 
 # PEG 阈值
+MIN_NET_MARGIN_FOR_PEG = 0.03  # 净利率 > 3% 才被视为实质盈利 (否则走未盈利逻辑)
 PEG_THRESHOLD_STRONG_BUY = 1.0     # PEG < 1.0 -> 极度低估
 PEG_THRESHOLD_BUY = 1.5            # PEG 1.0 - 1.5 -> 合理买入
 PEG_THRESHOLD_BUBBLE = 2.0         # PEG > 2.0 -> 泡沫风险 (Iron Gate 淘汰线)

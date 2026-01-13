@@ -10,9 +10,9 @@ Phase 1: The Iron Gate (铁律筛选)
 """
 
 import numpy as np
-from typing import List, Dict, Optional
+from typing import List
 from tools.fmp import FMPClient
-from core.data_models import IronGateMetrics, CompanyData
+from core.data_models import IronGateMetrics
 import config
 
 
@@ -109,20 +109,25 @@ class IronGate:
 
         # ========== 数据完整性检查 ==========
         if not income_annual or len(income_annual) < 2:
-            metrics.passed = False
-            metrics.fail_reason = "Insufficient annual data"
-            return metrics
+            # 数据不足时，不直接判负，而是将 CAGR 标记为 None，后续仅依赖季度增速判断
+            cagr_valid = False
+            metrics.revenue_cagr_5y = None
+        else:
+            cagr_valid = True
 
         # ========== 1. CAGR 计算 (20% 黄金分割线 - 长期检验) ==========
         # 检验公司是否具备"长跑能力"，而非昙花一现
-        try:
-            latest_rev = income_annual[0]['revenue']  # 最新年度营收
-            old_rev = income_annual[-1]['revenue']  # N 年前营收
-            years = len(income_annual) - 1  # 实际跨越年数
-            cagr = self._calculate_cagr(old_rev, latest_rev, years)
-            metrics.revenue_cagr_5y = cagr  # 字段名保留兼容性 (实际按 config 配置)
-        except Exception as e:
-            metrics.revenue_cagr_5y = 0.0
+        if cagr_valid:
+            try:
+                latest_rev = income_annual[0]['revenue']  # 最新年度营收
+                old_rev = income_annual[-1]['revenue']  # N 年前营收
+                years = len(income_annual) - 1  # 实际跨越年数
+                cagr = self._calculate_cagr(old_rev, latest_rev, years)
+                metrics.revenue_cagr_5y = cagr  # 字段名保留兼容性 (实际按 config 配置)
+            except Exception:
+                metrics.revenue_cagr_5y = None
+                cagr_valid = False
+
 
         # ========== 2. 当季同比增速 (20% 黄金分割线 - 动能检验) ==========
         if not income_quarterly or len(income_quarterly) < quarters_for_yoy:
@@ -159,11 +164,26 @@ class IronGate:
 
         # ========== 阈值检查: 增长率 ==========
         # 白皮书: "如果 CAGR < 20% 且 当季增速 < 20%，直接淘汰"
-        # 这里使用配置中的阈值 (默认 CAGR 15%, 季度 20%)
-        if (metrics.revenue_cagr_5y < config.GROWTH_THRESHOLD_CAGR) and \
-                (metrics.revenue_growth_current_q < config.GROWTH_THRESHOLD_QUARTER):
+        # 改进逻辑: 如果没有 CAGR 数据 (新股)，仅检查季度增速
+        
+        passed_growth_gate = False
+        
+        if metrics.revenue_cagr_5y is None:
+             # Case 1: 新股 (无 CAGR)，仅看爆发力
+            if metrics.revenue_growth_current_q >= config.GROWTH_THRESHOLD_QUARTER:
+                passed_growth_gate = True
+            else:
+                metrics.fail_reason = f"Low Growth (New IPO): Q_Growth {metrics.revenue_growth_current_q:.1%} < {config.GROWTH_THRESHOLD_QUARTER:.1%}"
+        else:
+            # Case 2: 老股，看长跑能力 OR 爆发力 (二者满足其一即可)
+            if (metrics.revenue_cagr_5y >= config.GROWTH_THRESHOLD_CAGR) or \
+               (metrics.revenue_growth_current_q >= config.GROWTH_THRESHOLD_QUARTER):
+                passed_growth_gate = True
+            else:
+                metrics.fail_reason = f"Low Growth: CAGR {metrics.revenue_cagr_5y:.1%}, Q_Growth {metrics.revenue_growth_current_q:.1%}"
+
+        if not passed_growth_gate:
             metrics.passed = False
-            metrics.fail_reason = f"Low Growth: CAGR {metrics.revenue_cagr_5y:.1%}, Q_Growth {metrics.revenue_growth_current_q:.1%}"
             return metrics
 
         # ========== 阈值检查: 减速预警 ==========
@@ -178,13 +198,19 @@ class IronGate:
         # ========== 4. 盈利路径二分法 (Profitability Bifurcation) ==========
         # 盈利公司和未盈利公司采用两套完全不同的生存标准
 
-        # 判断是否盈利: TTM 净利润率 > 0 或 最近 4 季度净利润总和 > 0
+        # 判断是否实质盈利: 
+        # 旧逻辑: TTM 净利润 > 0 即为盈利
+        # 新逻辑: TTM 净利率 > 3% 才算实质盈利 (微利企业归入未盈利组)
+        
         is_profitable = False
-        if ratios_ttm and ratios_ttm.get('netProfitMarginTTM', 0) > 0:
-            is_profitable = True
-
-        total_ni = sum(q['netIncome'] for q in income_quarterly[:quarters_for_ni])
-        if total_ni > 0:
+        ttm_net_margin = 0.0
+        
+        if ratios_ttm:
+            ttm_net_margin = ratios_ttm.get('netProfitMarginTTM', 0)
+        
+        # 即使没有 ratios_ttm，也可以手动计算 margin (可选优化，暂时依赖 ratios)
+        
+        if ttm_net_margin > config.MIN_NET_MARGIN_FOR_PEG:
             is_profitable = True
 
         if is_profitable:

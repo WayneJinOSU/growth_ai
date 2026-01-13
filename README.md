@@ -8,7 +8,51 @@
 
 1.  **Phase 1: 铁律筛选 (The Iron Gate)**
     *   **纯定量过滤**：基于 FMP API 的财务数据。
-    *   **核心指标**：5年营收 CAGR (>20%)、季度增速、减速预警、PEG (<2.0) 或 毛利斜率/运营杠杆（针对未盈利股）。
+    *   **核心指标**：5年营收 CAGR (>20%)、季度增速、减速预警、PEG (<2.0) 或 毛利斜率/运营杠杆（针对未盈利股及微利股）。
+    *   **改进机制**：
+        *   **新股保护**：上市时间短数据不足时，仅依赖季度增速判定，避免被 CAGR 逻辑误杀。
+        *   **微利豁免**：净利率 < 3% 的微利企业，强制走未盈利逻辑（看运营效率），避免 PEG 虚高导致误杀。
+    *   **筛选流程**：
+
+    <img src="stastic/diagram-2026-01-12-163254.png" width="40%"/>
+
+    ```mermaid
+    graph TD
+        Start[开始分析 Ticker] --> CheckData{年报数量 >= 2?}
+        
+        CheckData -- No --> SetCAGRNone[CAGR = None]
+        CheckData -- Yes --> CalcCAGR[计算 CAGR]
+        
+        SetCAGRNone --> CheckQ[检查季度增速]
+        CalcCAGR --> CheckQ
+        
+        CheckQ --> GrowthGate{增长率初筛}
+        
+        GrowthGate -- "CAGR=None" --> Gate1[仅检查: 季度增速 >= 20%?]
+        GrowthGate -- "CAGR有效" --> Gate2[检查: CAGR >= 15% OR 季度增速 >= 20%?]
+        
+        Gate1 -- Pass --> ProfitCheck
+        Gate2 -- Pass --> ProfitCheck
+        Gate1 -- Fail --> Reject[❌ 淘汰: 增长不足]
+        Gate2 -- Fail --> Reject
+        
+        ProfitCheck{实质盈利检查<br>TTM 净利率 > 3%?}
+        
+        ProfitCheck -- Yes (实质盈利) --> PathA[🅰️ 路径 A: 估值检查]
+        ProfitCheck -- No (未/微盈利) --> PathB[🅱️ 路径 B: 效率检查]
+        
+        PathA --> PEGCheck{PEG <= 2.0?}
+        PEGCheck -- Yes --> Pass[✅ 通过]
+        PEGCheck -- No --> RejectPEG[❌ 淘汰: PEG 泡沫]
+        
+        PathB --> MarginCheck{毛利斜率 > 0?}
+        MarginCheck -- Yes --> LevCheck{存在运营杠杆?}
+        MarginCheck -- No --> RejectMargin[❌ 淘汰: 毛利恶化]
+        
+        LevCheck -- Yes --> Pass
+        LevCheck -- No --> RejectLev[❌ 淘汰: 无运营杠杆]
+    ```
+
     *   **作用**：剔除 90% 基本面不合格的标的。
 
 2.  **Phase 2: DNA 识别 (The Identifier)**
