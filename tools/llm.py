@@ -19,7 +19,9 @@ class LLMClient:
                 ],
                 temperature=0.2
             )
-            return response.choices[0].message.content
+            if response and response.choices and len(response.choices) > 0:
+                return response.choices[0].message.content or ""
+            return ""
         except Exception as e:
             print(f"LLM Error: {e}")
             return ""
@@ -34,7 +36,9 @@ class LLMClient:
                 ],
                 response_format=schema,
             )
-            return completion.choices[0].message.parsed
+            if completion and completion.choices and len(completion.choices) > 0:
+                return completion.choices[0].message.parsed
+            return None
         except Exception as e:
             print(f"LLM Structure Error: {e}")
             return None

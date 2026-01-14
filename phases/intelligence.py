@@ -17,7 +17,7 @@ class Intelligence:
         for kpi in identifier_data.specific_kpis:
             query = f"{ticker} {kpi} latest quarter 2024 2025 financial results"
             search_results = self.search.search(query, max_results=3)
-            context = "\n".join([r['content'] for r in search_results])
+            context = "\n".join([r['content'] for r in search_results if r and 'content' in r])
 
             prompt = f"""
             Based on the search results below, extract the latest value for the KPI: {kpi} for {ticker}.
