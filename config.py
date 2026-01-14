@@ -5,7 +5,7 @@ load_dotenv()
 
 # ========== API Keys ==========
 FMP_API_KEY = os.getenv("FMP_API_KEY", "yiQrRNxbbe4TofnvMPGPz62QSTuT6Pbe")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "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")
 TAVILY_API_KEY = os.getenv("TAVILY_API_KEY", "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")
 
 if not FMP_API_KEY:

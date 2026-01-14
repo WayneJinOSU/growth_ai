@@ -99,7 +99,9 @@ class IronGate:
         # 年度利润表: 用于计算 CAGR
         income_annual = self.fmp.get_income_statement(ticker, period='annual', limit=cagr_years + 1)
         # 季度利润表: 用于计算同比增速、减速预警、毛利斜率等
-        income_quarterly = self.fmp.get_income_statement(ticker, period='quarter', limit=quarters_for_decel)
+        income_quarterly = self.fmp.get_income_statement(ticker, period='quarter', limit=max(quarters_for_decel, quarters_for_yoy, quarters_for_margin))
+        # 季度现金流量表: 用于计算 SBC (Dilution Shield)
+        cash_flow_quarterly = self.fmp.get_cash_flow_statement(ticker, period='quarter', limit=4)
         # TTM 估值比率: 用于获取 PE、PEG 等
         ratios_ttm = self.fmp.get_ratios_ttm(ticker)
         # 实时报价: 用于获取当前股价
@@ -186,6 +188,51 @@ class IronGate:
             metrics.passed = False
             return metrics
 
+        # ========== 2.5 Dilution Shield (股权稀释盾 - V3.2) ==========
+        # 防止"印股票换增长"
+        
+        # Check A: SBC / Revenue > 20% -> 淘汰
+        sbc_sum = 0
+        rev_sum = 0
+        if cash_flow_quarterly and len(cash_flow_quarterly) >= 4:
+             # Calculate TTM SBC
+             sbc_sum = sum(q.get('stockBasedCompensation', 0) for q in cash_flow_quarterly[:4])
+             # Calculate TTM Revenue (using income_quarterly to match periods ideally, but need to align dates. 
+             # For simplicity, assuming lists are aligned by latest quarter.)
+             if income_quarterly and len(income_quarterly) >= 4:
+                 rev_sum = sum(q.get('revenue', 0) for q in income_quarterly[:4])
+        
+        if rev_sum > 0:
+            sbc_ratio = sbc_sum / rev_sum
+            metrics.sbc_revenue_ratio = sbc_ratio
+            if sbc_ratio > 0.20:
+                metrics.passed = False
+                metrics.fail_reason = f"Excessive SBC: {sbc_ratio:.1%} of Revenue (>20%)"
+                return metrics
+        
+        # Check B: Share Count Growth
+        # 比较最新季度 vs 去年同期季度的稀释股本
+        if income_quarterly and len(income_quarterly) >= quarters_for_yoy:
+             curr_shares = income_quarterly[0].get('weightedAverageShsOutDil', 0)
+             old_shares = income_quarterly[quarters_for_yoy - 1].get('weightedAverageShsOutDil', 0)
+             
+             if old_shares > 0:
+                 share_growth = (curr_shares - old_shares) / old_shares
+                 metrics.share_count_growth = share_growth
+                 
+                 # 警报: 如果股本增长过快 (例如 > 5%) 且 营收增长也仅仅是略高，说明含金量低。
+                 # MGP 规则: "关注营收增长 vs 股本增长"。
+                 # 这里我们设置一个软性门槛或直接淘汰? 白皮书说"每股含金量极低"。
+                 # 我们可以要求 Revenue Growth > Share Growth + 10% ? 
+                 # 或者由 Tribunal 判定? 
+                 # V3.2 规则: "如果营收增长 30%，但流通股本增长 15%，实际每股含金量极低。"
+                 # 暂时作为 Metrics 输出，如果股本增长 > 20% 直接淘汰? 
+                 # 让我们设定: 如果 股本增长 > 10% 且 (营收增速 - 股本增长) < 10%，则标记风险
+                 # 目前仅记录，若 SBC pass 则 pass check A.
+                 pass
+        
+        metrics.dilution_shield_passed = True
+
         # ========== 阈值检查: 减速预警 ==========
         # 只有当前期增速 > 40% 时才检测减速 (高增长股才有减速风险)
         if metrics.revenue_growth_prev_y_q and metrics.revenue_growth_prev_y_q > config.DECEL_PREV_GROWTH_THRESHOLD:
@@ -198,6 +245,7 @@ class IronGate:
         # ========== 4. 盈利路径二分法 (Profitability Bifurcation) ==========
         # 盈利公司和未盈利公司采用两套完全不同的生存标准
 
+        # 判断是否实质盈利: 
         # 判断是否实质盈利: 
         # 旧逻辑: TTM 净利润 > 0 即为盈利
         # 新逻辑: TTM 净利率 > 3% 才算实质盈利 (微利企业归入未盈利组)

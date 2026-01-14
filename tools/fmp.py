@@ -51,6 +51,15 @@ class FMPClient:
             params['period'] = 'quarter'
         return self._get("income-statement", params=params) or []
 
+    def get_cash_flow_statement(self, ticker: str, period: str = 'annual', limit: int = 5) -> List[Dict]:
+        params = {
+            'symbol': ticker,
+            'limit': limit
+        }
+        if period == 'quarter':
+            params['period'] = 'quarter'
+        return self._get("cash-flow-statement", params=params) or []
+
     def get_key_metrics(self, ticker: str, period: str = 'annual', limit: int = 1) -> List[Dict]:
         params = {
             'symbol': ticker,

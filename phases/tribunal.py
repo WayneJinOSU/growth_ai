@@ -17,48 +17,80 @@ class Tribunal:
             "management": data.intelligence.management_integrity if data.intelligence else "Unknown",
             "moat": data.intelligence.product_moat if data.intelligence else "Unknown",
             "insider": data.intelligence.insider_activity if data.intelligence else "Unknown",
-            "dislocation": data.intelligence.dislocation_context if data.intelligence else "Unknown"
+            "dislocation": data.intelligence.dislocation_context if data.intelligence else "Unknown",
+            "blue_sky": data.intelligence.blue_sky.model_dump() if data.intelligence and data.intelligence.blue_sky else "Unknown",
+            "catalysts": data.intelligence.catalysts.model_dump() if data.intelligence and data.intelligence.catalysts else "Unknown"
         }
 
         context_str = json.dumps(context, indent=2)
 
         prompt = f"""
-        You are the Chief Investment Officer (CIO) executing the Mahaney Growth Protocol (MGP) V3.0.
+        You are the Chief Investment Officer (CIO) executing the Mahaney Growth Protocol (MGP) V3.2.
+        
+        This Strategy V3.2 emphasizes "Asymmetric Returns":
+        1. Downside protected by Valuation & Hygiene.
+        2. Upside driven by "Blue Sky" (Option Value).
+        3. Ignited by "Catalysts".
 
         Review the following data for {data.ticker} and render a Final Verdict.
 
         Data:
         {context_str}
 
-        ### Decision Logic (The Tribunal):
+        ### Decision Logic Tree (V3.2):
 
-        1. **Growth Thesis Check**:
-           - Is Revenue Growth (>20%) and specific KPIs (e.g. NDR, GMV) still strong?
-           - If Growth < 20% AND KPIs slowing -> SELL/AVOID.
-           - If Revenue slowing but KPIs strong -> Proceed to Valuation.
+        1. **Hygiene Check (Iron Gate & Dilution Shield)**:
+           - Is Revenue Growth intact (>20% or high)? 
+           - Is Dilution/SBC under control? (SBC/Rev < 20%)
+           - If Hygiene Fails -> **AVOID/SELL**.
 
-        2. **Valuation Fit**:
-           - PEG < 1.0 (and healthy model) -> STRONG BUY.
-           - PEG 1.0 - 1.5 -> BUY.
-           - PEG > 2.0 -> HOLD/WATCH (unless absolute monopoly growing >40%).
+        2. **Valuation Check**:
+           - PEG < 1.0 (Cheap) or < 1.5 (Reasonable)?
+           - Or if "Blue Sky" is massive, is PEG < 2.0 acceptable?
 
-        3. **Dislocation Check**:
-           - Is the price drop a "True Discount" (Macro/Sentiment) or "Fake Discount" (Broken Thesis)?
-           - If "True Discount" -> Upgrade confidence.
-           - If "Fake Discount" -> Downgrade to AVOID/SELL.
+        3. **Alpha / Option Value Check**:
+           - Is there a "Second Curve" (R&D Effectiveness)?
+           - Is there "TAM Expansion" capability?
+           
+        4. **Timing / Catalyst Check**:
+           - Are there upcoming events (Earnings, Investor Day) and Variant Perception?
+
+        ### Final Rating Categories:
+
+        - **CONVICTION BUY**:
+            - Reasonable Valuation + High Option Value + Clear Catalyst.
+            - "Rocket ready to launch."
+
+        - **ACCUMULATE**:
+            - Low/Reasonable Valuation + High Option Value. But NO near-term catalyst.
+            - "Long-term winner, wait for wind."
+
+        - **SPECULATIVE BUY**:
+            - High Valuation (PEG > 2) but Massive Option Value + Strong Catalyst.
+            - "Expensive but explosive."
+
+        - **VALUE TRAP**:
+            - Low Valuation but NO Option Value (Old tech) and NO Catalyst.
+            - "Cheap for a reason."
+
+        - **WATCH**:
+            - Fundamentals okay but waiting for better price or clarity.
+            
+        - **SELL**:
+            - Broken thesis, high dilution, or deteriorating fundamentals.
 
         ### Output Requirement:
         Provide a structured JSON response with:
-        - decision: "STRONG BUY", "BUY", "HOLD", "SELL", or "WATCH"
+        - decision: Enum value ("CONVICTION BUY", "ACCUMULATE", "SPECULATIVE BUY", "VALUE_TRAP", "WATCH", "SELL")
         - confidence: "High", "Medium", or "Low"
-        - rationale: A concise 2-3 sentence explanation.
+        - rationale: A concise explanation focusing on the V3.2 logic.
         - growth_thesis_intact: boolean
         - valuation_fit: boolean
         - is_true_discount: boolean
         """
 
         result = self.llm.extract_structured_data(prompt, TribunalDecision,
-                                                  system_prompt="You are a disciplined growth investor.")
+                                                  system_prompt="You are a VC-minded public market investor (MGP V3.2).")
 
         if not result:
             # Fallback
