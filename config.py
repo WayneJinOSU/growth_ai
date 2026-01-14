@@ -4,9 +4,9 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # ========== API Keys ==========
-FMP_API_KEY = os.getenv("FMP_API_KEY", "yiQrRNxbbe4TofnvMPGPz62QSTuT6Pbe")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
-TAVILY_API_KEY = os.getenv("TAVILY_API_KEY", "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")
+FMP_API_KEY = os.getenv("FMP_API_KEY")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+TAVILY_API_KEY = os.getenv("TAVILY_API_KEY")
 
 if not FMP_API_KEY:
     print("Warning: FMP_API_KEY not found in environment variables.")

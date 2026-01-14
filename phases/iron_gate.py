@@ -113,7 +113,7 @@ class IronGate:
         if not income_annual or len(income_annual) < 2:
             # 数据不足时，不直接判负，而是将 CAGR 标记为 None，后续仅依赖季度增速判断
             cagr_valid = False
-            metrics.revenue_cagr_5y = None
+            metrics.revenue_cagr_ny = None
         else:
             cagr_valid = True
 
@@ -125,9 +125,9 @@ class IronGate:
                 old_rev = income_annual[-1]['revenue']  # N 年前营收
                 years = len(income_annual) - 1  # 实际跨越年数
                 cagr = self._calculate_cagr(old_rev, latest_rev, years)
-                metrics.revenue_cagr_5y = cagr  # 字段名保留兼容性 (实际按 config 配置)
+                metrics.revenue_cagr_ny = cagr  # 字段名保留兼容性 (实际按 config 配置)
             except Exception:
-                metrics.revenue_cagr_5y = None
+                metrics.revenue_cagr_ny = None
                 cagr_valid = False
 
 
@@ -170,7 +170,7 @@ class IronGate:
         
         passed_growth_gate = False
         
-        if metrics.revenue_cagr_5y is None:
+        if metrics.revenue_cagr_ny is None:
              # Case 1: 新股 (无 CAGR)，仅看爆发力
             if metrics.revenue_growth_current_q >= config.GROWTH_THRESHOLD_QUARTER:
                 passed_growth_gate = True
@@ -178,11 +178,11 @@ class IronGate:
                 metrics.fail_reason = f"Low Growth (New IPO): Q_Growth {metrics.revenue_growth_current_q:.1%} < {config.GROWTH_THRESHOLD_QUARTER:.1%}"
         else:
             # Case 2: 老股，看长跑能力 OR 爆发力 (二者满足其一即可)
-            if (metrics.revenue_cagr_5y >= config.GROWTH_THRESHOLD_CAGR) or \
+            if (metrics.revenue_cagr_ny >= config.GROWTH_THRESHOLD_CAGR) or \
                (metrics.revenue_growth_current_q >= config.GROWTH_THRESHOLD_QUARTER):
                 passed_growth_gate = True
             else:
-                metrics.fail_reason = f"Low Growth: CAGR {metrics.revenue_cagr_5y:.1%}, Q_Growth {metrics.revenue_growth_current_q:.1%}"
+                metrics.fail_reason = f"Low Growth: CAGR {metrics.revenue_cagr_ny:.1%}, Q_Growth {metrics.revenue_growth_current_q:.1%}"
 
         if not passed_growth_gate:
             metrics.passed = False

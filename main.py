@@ -105,7 +105,7 @@ def generate_report_content(data: CompanyData) -> str:
     # 安全获取可能为 None 的值
     price_str = f"${data.current_price:.2f}" if data.current_price else "N/A"
     market_cap_str = f"${data.market_cap / 1e9:.2f}B" if data.market_cap else "N/A"
-    cagr_str = f"{data.iron_gate.revenue_cagr_5y:.1%}" if data.iron_gate.revenue_cagr_5y is not None else "N/A"
+    cagr_str = f"{data.iron_gate.revenue_cagr_ny:.1%}" if data.iron_gate.revenue_cagr_ny is not None else "N/A"
     q_growth_str = f"{data.iron_gate.revenue_growth_current_q:.1%}" if data.iron_gate.revenue_growth_current_q is not None else "N/A"
     peg_str = f"{data.iron_gate.peg_ratio:.2f}" if data.iron_gate.peg_ratio else "N/A"
     margin_slope_str = f"{data.iron_gate.gross_margin_slope:.4f}" if data.iron_gate.gross_margin_slope is not None else "N/A"

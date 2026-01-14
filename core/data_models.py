@@ -29,7 +29,7 @@ class Confidence(str, Enum):
 
 
 class IronGateMetrics(BaseModel):
-    revenue_cagr_5y: Optional[float] = None
+    revenue_cagr_ny: Optional[float] = None
     revenue_growth_current_q: Optional[float] = None
     revenue_growth_prev_y_q: Optional[float] = None
     peg_ratio: Optional[float] = None
