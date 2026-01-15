@@ -9,6 +9,7 @@ class Tribunal:
 
     def judge(self, data: CompanyData) -> TribunalDecision:
         # Construct a comprehensive context for the Judge
+        print(f"    - CIO Tribunal is deliberating on {data.ticker}...")
         context = {
             "ticker": data.ticker,
             "iron_gate": data.iron_gate.model_dump() if data.iron_gate else "Skipped/Failed",
@@ -89,11 +90,14 @@ class Tribunal:
         - is_true_discount: boolean
         """
 
+        system_prompt = "You are a VC-minded public market investor (MGP V3.2)."
+
         result = self.llm.extract_structured_data(prompt, TribunalDecision,
-                                                  system_prompt="You are a VC-minded public market investor (MGP V3.2).")
+                                                  system_prompt=system_prompt)
 
         if not result:
             # Fallback
+            print(f"      [Error] Tribunal failed for {data.ticker}. Falling back to WATCH.")
             return TribunalDecision(
                 decision=Decision.WATCH,
                 confidence=Confidence.LOW,
@@ -103,5 +107,7 @@ class Tribunal:
                 is_true_discount=False
             )
 
+        print(f"      Decision: {result.decision.value} | Confidence: {result.confidence.value}")
+        print(f"      Rationale: {result.rationale[:100]}...")
         return result
 

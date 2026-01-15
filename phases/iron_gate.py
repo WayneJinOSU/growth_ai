@@ -76,7 +76,7 @@ class IronGate:
         对单只股票执行铁律筛选分析
 
         分析流程:
-        1. 获取年度和季度财务数据
+        1. 获取年度和季度财务 data
         2. 计算 CAGR (复合年均增长率)
         3. 计算当季同比增速
         4. 检测增速减速预警
@@ -96,6 +96,7 @@ class IronGate:
         quarters_for_ni = config.QUARTERS_FOR_NI_SUM  # TTM 净利润求和季度数 (默认 4)
 
         # ========== 获取财务数据 ==========
+        print("    - Fetching financial data from FMP...")
         # 年度利润表: 用于计算 CAGR
         income_annual = self.fmp.get_income_statement(ticker, period='annual', limit=cagr_years + 1)
         # 季度利润表: 用于计算同比增速、减速预警、毛利斜率等
@@ -114,6 +115,7 @@ class IronGate:
             # 数据不足时，不直接判负，而是将 CAGR 标记为 None，后续仅依赖季度增速判断
             cagr_valid = False
             metrics.revenue_cagr_ny = None
+            print("      [Warning] Insufficient annual data for CAGR.")
         else:
             cagr_valid = True
 
@@ -126,6 +128,7 @@ class IronGate:
                 years = len(income_annual) - 1  # 实际跨越年数
                 cagr = self._calculate_cagr(old_rev, latest_rev, years)
                 metrics.revenue_cagr_ny = cagr  # 字段名保留兼容性 (实际按 config 配置)
+                print(f"      CAGR ({years}y): {cagr:.1%} (Threshold: {config.GROWTH_THRESHOLD_CAGR:.1%})")
             except Exception:
                 metrics.revenue_cagr_ny = None
                 cagr_valid = False
@@ -135,6 +138,7 @@ class IronGate:
         if not income_quarterly or len(income_quarterly) < quarters_for_yoy:
             metrics.passed = False
             metrics.fail_reason = f"Insufficient quarterly data (need {quarters_for_yoy})"
+            print(f"      [Fail] {metrics.fail_reason}")
             return metrics
 
         try:
@@ -143,6 +147,7 @@ class IronGate:
             prev_year_q_rev = income_quarterly[quarters_for_yoy - 1]['revenue']
             current_growth = (current_rev - prev_year_q_rev) / prev_year_q_rev
             metrics.revenue_growth_current_q = current_growth
+            print(f"      Current Q Growth: {current_growth:.1%} (Threshold: {config.GROWTH_THRESHOLD_QUARTER:.1%})")
 
             # ========== 3. 减速预警 (Deceleration Alarm) ==========
             # 比较: 今年增速 vs 去年同期增速
@@ -156,6 +161,7 @@ class IronGate:
                 # 去年同期的增速: (Q-4 - Q-8) / Q-8
                 prev_growth = (prev_rev - prev_prev_rev) / prev_prev_rev
                 metrics.revenue_growth_prev_y_q = prev_growth
+                print(f"      Previous Year Q Growth: {prev_growth:.1%}")
             else:
                 # 数据不足时，假设增速稳定
                 metrics.revenue_growth_prev_y_q = current_growth
@@ -186,6 +192,7 @@ class IronGate:
 
         if not passed_growth_gate:
             metrics.passed = False
+            print(f"      [Fail] {metrics.fail_reason}")
             return metrics
 
         # ========== 2.5 Dilution Shield (股权稀释盾 - V3.2) ==========
@@ -205,9 +212,11 @@ class IronGate:
         if rev_sum > 0:
             sbc_ratio = sbc_sum / rev_sum
             metrics.sbc_revenue_ratio = sbc_ratio
+            print(f"      SBC/Revenue Ratio: {sbc_ratio:.1%}")
             if sbc_ratio > 0.20:
                 metrics.passed = False
                 metrics.fail_reason = f"Excessive SBC: {sbc_ratio:.1%} of Revenue (>20%)"
+                print(f"      [Fail] {metrics.fail_reason}")
                 return metrics
         
         # Check B: Share Count Growth
@@ -219,6 +228,7 @@ class IronGate:
              if old_shares > 0:
                  share_growth = (curr_shares - old_shares) / old_shares
                  metrics.share_count_growth = share_growth
+                 print(f"      Share Count Growth (YoY): {share_growth:.1%}")
                  
                  # 警报: 如果股本增长过快 (例如 > 5%) 且 营收增长也仅仅是略高，说明含金量低。
                  # MGP 规则: "关注营收增长 vs 股本增长"。
@@ -240,6 +250,7 @@ class IronGate:
             if metrics.revenue_growth_current_q < (metrics.revenue_growth_prev_y_q * config.DECEL_DROP_RATIO):
                 metrics.passed = False
                 metrics.fail_reason = f"Deceleration Alarm: {metrics.revenue_growth_prev_y_q:.1%} -> {metrics.revenue_growth_current_q:.1%}"
+                print(f"      [Fail] {metrics.fail_reason}")
                 return metrics
 
         # ========== 4. 盈利路径二分法 (Profitability Bifurcation) ==========
@@ -256,10 +267,13 @@ class IronGate:
         if ratios_ttm:
             ttm_net_margin = ratios_ttm.get('netProfitMarginTTM', 0)
         
-        # 即使没有 ratios_ttm，也可以手动计算 margin (可选优化，暂时依赖 ratios)
+        print(f"      TTM Net Margin: {ttm_net_margin:.1%}")
         
         if ttm_net_margin > config.MIN_NET_MARGIN_FOR_PEG:
             is_profitable = True
+            print("      Mode: Profitable (Checking PEG)")
+        else:
+            print("      Mode: Non-Profitable (Checking Margin Slope & Leverage)")
 
         if is_profitable:
             # ========== A 类: 已盈利公司 - 检查 PEG ==========
@@ -285,11 +299,13 @@ class IronGate:
                 peg = pe / growth_rate
 
             metrics.peg_ratio = peg
+            print(f"      PE: {pe:.2f} | PEG: {peg:.2f}" if peg else f"      PE: {pe:.2f} | PEG: N/A")
 
             # PEG 阈值检查
             if peg and peg > config.PEG_THRESHOLD_BUBBLE:
                 metrics.passed = False
                 metrics.fail_reason = f"PEG too high: {peg:.2f} (threshold: {config.PEG_THRESHOLD_BUBBLE})"
+                print(f"      [Fail] {metrics.fail_reason}")
                 return metrics
         else:
             # ========== B 类: 未盈利公司 - 证明"烧钱是有意义的" ==========
@@ -305,11 +321,13 @@ class IronGate:
 
             slope = self._calculate_slope(margins)
             metrics.gross_margin_slope = slope
+            print(f"      Gross Margin Slope: {slope:.4f}")
 
             # 斜率检查: 必须为正 (上升趋势)，允许轻微噪音
             if slope < config.GROSS_MARGIN_SLOPE_TOLERANCE:
                 metrics.passed = False
                 metrics.fail_reason = f"Gross Margin Declining (Slope: {slope:.4f})"
+                print(f"      [Fail] {metrics.fail_reason}")
                 return metrics
 
             # --- 检查 2: 运营杠杆 (Operating Leverage) ---
@@ -321,12 +339,15 @@ class IronGate:
 
             metrics.opex_growth = opex_growth
             metrics.operating_leverage = metrics.revenue_growth_current_q > opex_growth
+            print(f"      OpEx Growth: {opex_growth:.1%} | Leverage: {'YES' if metrics.operating_leverage else 'NO'}")
 
             if not metrics.operating_leverage:
                 metrics.passed = False
                 metrics.fail_reason = f"No Operating Leverage: Rev {metrics.revenue_growth_current_q:.1%} < OpEx {opex_growth:.1%}"
+                print(f"      [Fail] {metrics.fail_reason}")
                 return metrics
 
         # ========== 全部检查通过 ==========
         metrics.passed = True
+        print(f"    - Iron Gate PASSED for {ticker}")
         return metrics

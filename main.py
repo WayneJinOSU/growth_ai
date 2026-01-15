@@ -1,7 +1,6 @@
 import argparse
 import json
 from datetime import datetime
-from typing import List
 
 from phases.iron_gate import IronGate
 from phases.identifier import Identifier
@@ -11,7 +10,7 @@ from phases.tribunal import Tribunal
 from tools.fmp import FMPClient
 from tools.llm import LLMClient
 from tools.search import SearchClient
-from core.data_models import CompanyData, AnalysisReport
+from core.data_models import CompanyData
 
 
 def translate_report(llm: LLMClient, report_content: str) -> str:
@@ -72,6 +71,7 @@ def analyze_ticker(ticker: str, fmp: FMPClient, llm: LLMClient, search: SearchCl
     # We need a description. FMP profile has description.
     profile = fmp.get_profile(ticker)
     description = profile['description'] if profile else "Technology company"
+    print(f"    - Description length: {len(description)} characters")
 
     data.identifier = ident.identify(ticker, description)
     print(f"[{ticker}] Identified as {data.identifier.business_model} with KPIs: {data.identifier.specific_kpis}")
@@ -80,25 +80,58 @@ def analyze_ticker(ticker: str, fmp: FMPClient, llm: LLMClient, search: SearchCl
     print(f"[{ticker}] Phase 3: Saturated Intelligence...")
     intel = Intelligence(llm, search)
     data.intelligence = intel.gather(ticker, data.identifier)
+    print(f"    - Intelligence gathering complete. Found {len(data.intelligence.kpi_values)} KPI values.")
 
     # Phase 4: Tribunal
     print(f"[{ticker}] Phase 4: The Tribunal...")
     tribunal = Tribunal(llm)
     data.tribunal = tribunal.judge(data)
     print(f"[{ticker}] Verdict: {data.tribunal.decision} ({data.tribunal.confidence})")
+    print(f"    - Rationale: {data.tribunal.rationale[:150]}...")
 
     return data
 
 
+def clean_report_content(text: str) -> str:
+    """
+    清洗报告内容，移除冗余标题和过渡性废话
+    """
+    if not text:
+        return ""
+    
+    # 1. 移除 LLM 可能生成的 Markdown 标题 (因为我们会在外部添加标准标题)
+    lines = text.split('\n')
+    cleaned_lines = []
+    for line in lines:
+        stripped = line.strip()
+        # 跳过类似于 "## R&D Analysis" 的行，因为我们自己控制标题
+        if stripped.startswith('#') and ('Analysis' in stripped or 'Summary' in stripped or 'Conclusion' in stripped):
+            continue
+        # 跳过典型的废话
+        if stripped.lower().startswith('based on the provided'):
+            continue
+        cleaned_lines.append(line)
+        
+    return '\n'.join(cleaned_lines).strip()
+
+def format_kpis_to_markdown(kpis: dict) -> str:
+    """
+    将 KPI 字典转换为 Markdown 表格
+    """
+    if not kpis:
+        return "N/A"
+    
+    table = "| KPI | Value |\n| :--- | :--- |\n"
+    for k, v in kpis.items():
+        # 清洗 value，移除可能存在的换行
+        clean_v = str(v).replace('\n', ' ').strip()
+        table += f"| {k} | {clean_v} |\n"
+    
+    return table
+
 def generate_report_content(data: CompanyData) -> str:
     """
-    生成报告内容字符串
-
-    Args:
-        data: 公司分析数据
-
-    Returns:
-        Markdown 格式的报告内容
+    生成报告内容字符串 (Pro Format)
     """
     timestamp = datetime.now().strftime("%Y-%m-%d")
 
@@ -109,11 +142,22 @@ def generate_report_content(data: CompanyData) -> str:
     q_growth_str = f"{data.iron_gate.revenue_growth_current_q:.1%}" if data.iron_gate.revenue_growth_current_q is not None else "N/A"
     peg_str = f"{data.iron_gate.peg_ratio:.2f}" if data.iron_gate.peg_ratio else "N/A"
     margin_slope_str = f"{data.iron_gate.gross_margin_slope:.4f}" if data.iron_gate.gross_margin_slope is not None else "N/A"
-    opex_str = "Passed" if data.iron_gate.operating_leverage else (
-        "Failed" if data.iron_gate.operating_leverage is False else "N/A")
-
+    
     sbc_str = f"{data.iron_gate.sbc_revenue_ratio:.1%}" if data.iron_gate.sbc_revenue_ratio is not None else "N/A"
     dilution_check_str = "Passed" if data.iron_gate.dilution_shield_passed else "Failed"
+
+    # 清洗各部分文本
+    rationale_cleaned = clean_report_content(data.tribunal.rationale)
+    variant_perception = clean_report_content(data.intelligence.catalysts.variant_perception) if data.intelligence.catalysts else "N/A"
+    rnd_effectiveness = clean_report_content(data.intelligence.blue_sky.rnd_effectiveness) if data.intelligence.blue_sky else "N/A"
+    tam_expansion = clean_report_content(data.intelligence.blue_sky.tam_expansion) if data.intelligence.blue_sky else "N/A"
+    
+    mgmt_integrity = clean_report_content(data.intelligence.management_integrity)
+    product_moat = clean_report_content(data.intelligence.product_moat)
+    insider_activity = clean_report_content(data.intelligence.insider_activity)
+    dislocation = clean_report_content(data.intelligence.dislocation_context)
+    
+    kpi_table = format_kpis_to_markdown(data.intelligence.kpi_values)
 
     report_content = f"""# MGP V3.2 Analysis: {data.ticker}
 **Date:** {timestamp}
@@ -121,11 +165,11 @@ def generate_report_content(data: CompanyData) -> str:
 **Price:** {price_str} | **Market Cap:** {market_cap_str}
 
 ## Executive Summary
-{data.tribunal.rationale}
+{rationale_cleaned}
 
 ---
 
-## Phase 1: The Iron Gate & Hygiene
+## 1. Investment Hygiene (Iron Gate)
 * **Status**: {"Passed" if data.iron_gate.passed else "Failed"}
 * **CAGR**: {cagr_str}
 * **Current Q Growth**: {q_growth_str}
@@ -134,33 +178,46 @@ def generate_report_content(data: CompanyData) -> str:
 * **PEG Ratio**: {peg_str}
 * **Gross Margin Slope**: {margin_slope_str}
 
-## Phase 2: DNA & KPIs
-* **Business Model**: {data.identifier.business_model.value}
-* **Key KPIs**: {', '.join(data.identifier.specific_kpis)}
-* **Bear Case Hook**: {data.identifier.bear_case_hook}
+## 2. The Variant Perception (Why Market is Wrong)
+{variant_perception}
 
-## Phase 3: Blue Sky & Intelligence
-### Blue Sky (Option Value)
-* **R&D Effectiveness**: {data.intelligence.blue_sky.rnd_effectiveness if data.intelligence.blue_sky else "N/A"}
-* **TAM Expansion**: {data.intelligence.blue_sky.tam_expansion if data.intelligence.blue_sky else "N/A"}
+## 3. Deep Dive Analysis
 
-### Catalyst Calendar
-* **Upcoming Events**: {', '.join(data.intelligence.catalysts.upcoming_events) if data.intelligence.catalysts else "N/A"}
-* **Variant Perception**: {data.intelligence.catalysts.variant_perception if data.intelligence.catalysts else "N/A"}
+### Growth Engine (Blue Sky)
+**R&D Effectiveness (Second Curve):**
+{rnd_effectiveness}
 
-### Core Intelligence
-* **KPI Performance**:
-{json.dumps(data.intelligence.kpi_values, indent=2)}
+**TAM Expansion:**
+{tam_expansion}
 
-* **Management**: {data.intelligence.management_integrity}
-* **Moat**: {data.intelligence.product_moat}
-* **Insider Activity**: {data.intelligence.insider_activity}
-* **Dislocation**: {data.intelligence.dislocation_context}
+### Valuation Logic
+**Dislocation Analysis:**
+{dislocation}
 
-## Phase 4: Tribunal Logic
+**Catalysts:**
+{', '.join(data.intelligence.catalysts.upcoming_events) if data.intelligence.catalysts else "N/A"}
+
+## 4. Risk & Soft Power
+
+### Management & Moat
+**Management Integrity:**
+{mgmt_integrity}
+
+**Competitive Moat:**
+{product_moat}
+
+**Insider Activity:**
+{insider_activity}
+
+### Core KPIs
+{kpi_table}
+
+## 5. Final Verdict Logic
 * **Growth Thesis Intact**: {data.tribunal.growth_thesis_intact}
 * **Valuation Fit**: {data.tribunal.valuation_fit}
 * **True Discount**: {data.tribunal.is_true_discount}
+* **Business Model**: {data.identifier.business_model.value}
+* **Bear Case Hook**: {data.identifier.bear_case_hook}
 
 ---
 *Generated by MGP V3.2 Auto-Analyst*

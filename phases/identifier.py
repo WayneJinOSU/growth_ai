@@ -35,8 +35,12 @@ class Identifier:
 
         if not result:
             # Fallback
+            print(f"      [Warning] LLM failed to identify {ticker}. Using fallback.")
             return IdentifierData(business_model=BusinessModel.OTHER, specific_kpis=["Revenue Growth"],
                                   bear_case_hook="Unknown")
 
+        print(f"      Business Model: {result.business_model.value}")
+        print(f"      Target KPIs: {result.specific_kpis}")
+        print(f"      Bear Case Hook: {result.bear_case_hook}")
         return result
 
