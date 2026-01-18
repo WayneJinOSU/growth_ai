@@ -246,7 +246,7 @@ def generate_report_content_v34(data: CompanyData) -> str:
 
 ---
 
-## 1. Macro Environment (V3.4 Gatekeeper)
+## 1. Macro Environment
 | Metric | Value | Status |
 | :--- | :--- | :--- |
 | **US 10Y Yield** | {us10y} | Macro Mode: **{macro_mode}** |
@@ -261,7 +261,7 @@ def generate_report_content_v34(data: CompanyData) -> str:
 | **SBC/Revenue** | {sbc_str} | <20% |
 | **PEG Ratio** | {peg_str} | <1.5 (Macro-adjusted) |
 
-## 3. Shadow Audit & Polygraph (V3.4)
+## 3. Shadow Audit & Polygraph
 
 ### Shadow Audit (影子审计)
 | Check | Result |
@@ -316,7 +316,7 @@ def generate_report_content_v34(data: CompanyData) -> str:
 ## 8. Core KPIs
 {kpi_table}
 
-## 9. Final Verdict Logic (V3.4)
+## 9. Final Verdict Logic
 | Gate | Status |
 | :--- | :--- |
 | **Macro Gate** | {macro_mode} |
