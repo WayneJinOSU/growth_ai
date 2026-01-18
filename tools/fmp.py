@@ -83,3 +83,71 @@ class FMPClient:
         if data:
             return data[0]
         return None
+
+    # ========== V3.4 New Methods ==========
+    # Note: get_treasury_yield() 移至 SearchClient，使用 Tavily 搜索获取
+    # 因为 FMP ^TNX 数据需要更高权限
+
+    def get_vix(self) -> Optional[float]:
+        """
+        获取 VIX 恐慌指数
+        用于 V3.4 波动率熔断机制
+        
+        Returns:
+            float: VIX 值，获取失败返回 None
+        """
+        # FMP 使用 ^VIX 作为恐慌指数符号
+        data = self._get("quote", params={'symbol': '^VIX'})
+        if data and len(data) > 0:
+            return data[0].get('price')
+        return None
+
+    def get_stock_news(self, ticker: str, limit: int = 20, from_date: Optional[str] = None, to_date: Optional[str] = None) -> List[Dict]:
+        """
+        获取个股相关新闻
+        用于 V3.4 紧急弹射信号检测 (高管离职、客户流失等)
+        
+        Args:
+            ticker: 股票代码
+            limit: 返回数量上限 (默认 20)
+            from_date: 起始日期 (格式: YYYY-MM-DD)
+            to_date: 结束日期 (格式: YYYY-MM-DD)
+        
+        Returns:
+            List[Dict]: 新闻列表，包含 title, text, publishedDate 等字段
+        """
+        params = {
+            'symbols': ticker,
+            'limit': limit
+        }
+        if from_date:
+            params['from'] = from_date
+        if to_date:
+            params['to'] = to_date
+        return self._get("news/stock", params=params) or []
+
+    # NOTE: get_press_releases() 已移至 SearchClient.get_press_releases()
+    # 使用 Tavily 定向搜索 businesswire.com/prnewswire.com 替代
+    # 因为 FMP news/press-releases 接口需要更高级别会员权限
+
+    def get_forex_news(self, symbol: str = "EURUSD", limit: int = 10) -> List[Dict]:
+        """
+        获取外汇新闻
+        用于 V3.4 估值桥 Layer B 微调 (美元强弱影响跨国公司业绩)
+        
+        Args:
+            symbol: 货币对 (默认 EURUSD)
+            limit: 返回数量上限 (默认 10)
+        
+        Returns:
+            List[Dict]: 外汇新闻列表
+        """
+        params = {
+            'symbols': symbol,
+            'limit': limit
+        }
+        return self._get("news/forex", params=params) or []
+
+if __name__ == "__main__":
+    fMPClient = FMPClient()
+    print(fMPClient.get_quote('^TNX'))

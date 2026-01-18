@@ -13,6 +13,12 @@ class BusinessModel(str, Enum):
 
 
 class Decision(str, Enum):
+    # V3.4 New Decisions
+    TACTICAL_SNIPER = "TACTICAL SNIPER"
+    STRATEGIC_COMPOUNDER = "STRATEGIC COMPOUNDER"
+    TRAP = "TRAP"
+    
+    # Legacy / Compatible Decisions
     CONVICTION_BUY = "CONVICTION BUY"
     ACCUMULATE = "ACCUMULATE"
     SPECULATIVE_BUY = "SPECULATIVE BUY"
@@ -21,11 +27,38 @@ class Decision(str, Enum):
     SKIP = "SKIP"  # For failed Iron Gate
 
 
+class MacroMode(str, Enum):
+    LOOSE = "Loose"      # < 3.0%
+    NEUTRAL = "Neutral"  # 3.0% - 4.5%
+    TIGHT = "Tight"      # > 4.5%
+
 
 class Confidence(str, Enum):
     HIGH = "High"
     MEDIUM = "Medium"
     LOW = "Low"
+
+
+class GatekeeperData(BaseModel):
+    sector_check_passed: bool
+    macro_mode: MacroMode
+    us10y_yield: Optional[float] = None
+    vix_value: Optional[float] = None
+    passed: bool
+    fail_reason: Optional[str] = None
+
+
+class ShadowAuditData(BaseModel):
+    linkedin_hiring_audit: Optional[str] = None
+    customer_quality_audit: Optional[str] = None
+    is_fake_tech: bool = False
+    has_king_maker_clients: bool = False
+
+
+class PolygraphData(BaseModel):
+    cash_flow_divergence_check: bool = True  # True means PASS (No massive divergence)
+    sandbagging_detected: bool = False       # True means Sandbagging detected (Good for Sniper)
+    details: Optional[str] = None
 
 
 class IronGateMetrics(BaseModel):
@@ -88,8 +121,11 @@ class CompanyData(BaseModel):
     market_cap: Optional[float] = None
 
     # Phases
+    gatekeeper: Optional[GatekeeperData] = None
     iron_gate: Optional[IronGateMetrics] = None
+    shadow_audit: Optional[ShadowAuditData] = None
     identifier: Optional[IdentifierData] = None
+    polygraph: Optional[PolygraphData] = None
     intelligence: Optional[IntelligenceData] = None
     tribunal: Optional[TribunalDecision] = None
 

@@ -1,14 +1,69 @@
+"""
+Phase 3: Intelligence (情报收集) + V3.4 Macro-Adjusted Valuation
+================================================================
+收集软实力指标、蓝天分析、催化剂事件，并进行宏观调整估值。
+
+核心功能:
+1. KPI 验证 (NDR, RPO 等)
+2. 软实力画像 (管理层、护城河、内部人交易)
+3. 蓝天分析 (R&D 第二曲线、TAM 膨胀)
+4. 催化剂日历 (财报日、产品发布)
+5. [V3.4] 宏观调整估值 - 根据 10Y 美债收益率调整估值容忍度
+"""
+
+
 from tools.llm import LLMClient
 from tools.search import SearchClient
-from core.data_models import IntelligenceData, IdentifierData, BlueSkyData, CatalystData
+from tools.fmp import FMPClient
+from core.data_models import IntelligenceData, IdentifierData, BlueSkyData, CatalystData, GatekeeperData, MacroMode
 
 
 class Intelligence:
-    def __init__(self, llm_client: LLMClient, search_client: SearchClient):
+    """
+    情报收集器：MGP 策略的第三道关卡
+    
+    V3.4 扩展职责：
+    - 收集软实力指标和特异性 KPI
+    - 宏观调整估值：根据 MacroMode 调整估值倍数
+    """
+    
+    # V3.4 宏观调整估值参数
+    MACRO_PE_ADJUSTMENTS = {
+        MacroMode.LOOSE: {
+            "bear_pe": 20,      # 宽松环境下，Bear Case PE 可放宽至 20x
+            "target_pe": 30,    # 目标 PE
+            "bull_pe": 45,      # 牛市 PE
+            "peg_max": 2.0,     # 允许 PEG 最高 2.0
+        },
+        MacroMode.NEUTRAL: {
+            "bear_pe": 18,      # 中性环境
+            "target_pe": 25,
+            "bull_pe": 35,
+            "peg_max": 1.5,     # PEG 严格 < 1.5
+        },
+        MacroMode.TIGHT: {
+            "bear_pe": 15,      # 紧缩环境，强制 Bear Case PE = 15x
+            "target_pe": 20,
+            "bull_pe": 25,
+            "peg_max": 1.2,     # PEG 必须 < 1.0~1.2
+        },
+    }
+
+    def __init__(self, llm_client: LLMClient, search_client: SearchClient, fmp_client: FMPClient = None):
         self.llm = llm_client
         self.search = search_client
+        self.fmp = fmp_client
 
-    def gather(self, ticker: str, identifier_data: IdentifierData) -> IntelligenceData:
+    def gather(self, ticker: str, identifier_data: IdentifierData, 
+               gatekeeper_data: GatekeeperData = None) -> IntelligenceData:
+        """
+        收集情报数据
+        
+        Args:
+            ticker: 股票代码
+            identifier_data: 商业模式识别数据
+            gatekeeper_data: V3.4 Gatekeeper 数据 (用于宏观调整)
+        """
         data = IntelligenceData()
 
         # 1. Verify Specific KPIs
@@ -128,6 +183,12 @@ class Intelligence:
         print("    - Performing Catalyst Analysis...")
         data.catalysts = self._analyze_catalysts(ticker)
 
+        # 8. [V3.4] Macro-Adjusted Valuation Analysis
+        if gatekeeper_data:
+            print("    - [V3.4] Calculating Macro-Adjusted Valuation...")
+            valuation_analysis = self._analyze_macro_adjusted_valuation(ticker, gatekeeper_data)
+            data.kpi_values["macro_valuation_analysis"] = valuation_analysis
+
         return data
 
     def _analyze_blue_sky(self, ticker: str) -> BlueSkyData:
@@ -221,3 +282,83 @@ class Intelligence:
         print(f"      Variant Perception: {catalyst.variant_perception[:100]}...")
         
         return catalyst
+
+    # ========== V3.4 Macro-Adjusted Valuation ==========
+
+    def _analyze_macro_adjusted_valuation(self, ticker: str, gatekeeper_data: GatekeeperData) -> str:
+        """
+        V3.4 宏观调整估值分析
+        
+        根据当前宏观环境 (MacroMode) 调整估值倍数，计算 Bear/Target/Bull Case
+        
+        Args:
+            ticker: 股票代码
+            gatekeeper_data: Gatekeeper 数据 (包含 MacroMode)
+            
+        Returns:
+            str: 估值分析结果
+        """
+        macro_mode = gatekeeper_data.macro_mode
+        us10y = gatekeeper_data.us10y_yield
+        vix = gatekeeper_data.vix_value
+        
+        # 获取宏观调整后的估值参数
+        valuation_params = self.MACRO_PE_ADJUSTMENTS.get(macro_mode, self.MACRO_PE_ADJUSTMENTS[MacroMode.NEUTRAL])
+        
+        print(f"      Macro Mode: {macro_mode.value}")
+        print(f"      Adjusted PE Parameters: Bear={valuation_params['bear_pe']}x, Target={valuation_params['target_pe']}x, Bull={valuation_params['bull_pe']}x")
+        print(f"      Max Allowed PEG: {valuation_params['peg_max']}")
+        
+        # 获取当前估值数据 (如果 FMP 可用)
+        current_pe = None
+        current_price = None
+        if self.fmp:
+            quote = self.fmp.get_quote(ticker)
+            ratios = self.fmp.get_ratios_ttm(ticker)
+            if quote:
+                current_price = quote.get('price')
+            if ratios:
+                current_pe = ratios.get('peRatioTTM')
+        
+        # 构建估值分析
+        analysis_parts = []
+        analysis_parts.append("=== V3.4 Macro-Adjusted Valuation ===")
+        analysis_parts.append(f"Macro Environment: {macro_mode.value} (US10Y: {us10y:.2f}%)" if us10y else f"Macro Environment: {macro_mode.value}")
+        if vix:
+            vix_status = "⚠️ PANIC" if vix > 30 else "Normal"
+            analysis_parts.append(f"VIX: {vix:.1f} ({vix_status})")
+        
+        analysis_parts.append("\nValuation Parameters (Macro-Adjusted):")
+        analysis_parts.append(f"  - Bear Case PE: {valuation_params['bear_pe']}x")
+        analysis_parts.append(f"  - Target PE: {valuation_params['target_pe']}x")
+        analysis_parts.append(f"  - Bull Case PE: {valuation_params['bull_pe']}x")
+        analysis_parts.append(f"  - Max Acceptable PEG: {valuation_params['peg_max']}")
+        
+        if current_pe and current_price:
+            analysis_parts.append("\nCurrent Valuation:")
+            analysis_parts.append(f"  - Price: ${current_price:.2f}")
+            analysis_parts.append(f"  - PE (TTM): {current_pe:.1f}x")
+            
+            # 计算隐含的 Bear/Target/Bull 价格
+            if current_pe > 0:
+                eps = current_price / current_pe
+                bear_price = eps * valuation_params['bear_pe']
+                target_price = eps * valuation_params['target_pe']
+                bull_price = eps * valuation_params['bull_pe']
+                
+                analysis_parts.append(f"\nImplied Price Targets (Based on EPS ${eps:.2f}):")
+                analysis_parts.append(f"  - Bear Case: ${bear_price:.2f} ({((bear_price/current_price)-1)*100:+.1f}%)")
+                analysis_parts.append(f"  - Target: ${target_price:.2f} ({((target_price/current_price)-1)*100:+.1f}%)")
+                analysis_parts.append(f"  - Bull Case: ${bull_price:.2f} ({((bull_price/current_price)-1)*100:+.1f}%)")
+                
+                # 投资建议
+                if current_price < bear_price:
+                    analysis_parts.append("\n✅ STRONG BUY ZONE: Current price below Bear Case")
+                elif current_price < target_price:
+                    analysis_parts.append("\n✓ BUY ZONE: Current price between Bear and Target")
+                elif current_price < bull_price:
+                    analysis_parts.append("\n⚠️ HOLD ZONE: Current price between Target and Bull")
+                else:
+                    analysis_parts.append("\n❌ SELL ZONE: Current price above Bull Case")
+        
+        return "\n".join(analysis_parts)
