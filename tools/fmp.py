@@ -148,6 +148,72 @@ class FMPClient:
         }
         return self._get("news/forex", params=params) or []
 
+    # ========== V3.7 New Methods ==========
+
+    def get_balance_sheet(self, ticker: str, period: str = 'annual', limit: int = 5) -> List[Dict]:
+        """
+        获取资产负债表
+        用于 V3.7 Financial Forensics (库存周转、债务分析)
+        
+        Args:
+            ticker: 股票代码
+            period: 'annual' 或 'quarter'
+            limit: 返回数量上限
+        
+        Returns:
+            List[Dict]: 资产负债表数据列表
+        """
+        params = {
+            'symbol': ticker,
+            'limit': limit
+        }
+        if period == 'quarter':
+            params['period'] = 'quarter'
+        return self._get("balance-sheet-statement", params=params) or []
+
+    def get_ratios(self, ticker: str, period: str = 'annual', limit: int = 5) -> List[Dict]:
+        """
+        获取历史财务比率
+        用于 V3.7 Historical PE Z-Score 计算
+        
+        Args:
+            ticker: 股票代码
+            period: 'annual' 或 'quarter'
+            limit: 返回数量上限
+        
+        Returns:
+            List[Dict]: 财务比率数据列表 (含 PE, PB, etc.)
+        """
+        params = {
+            'symbol': ticker,
+            'limit': limit
+        }
+        if period == 'quarter':
+            params['period'] = 'quarter'
+        return self._get("ratios", params=params) or []
+
+    def get_enterprise_values(self, ticker: str, period: str = 'annual', limit: int = 5) -> List[Dict]:
+        """
+        获取企业价值数据
+        用于 V3.7 Net Debt / EBITDA 计算
+        
+        Args:
+            ticker: 股票代码
+            period: 'annual' 或 'quarter'
+            limit: 返回数量上限
+        
+        Returns:
+            List[Dict]: 企业价值数据列表 (含 enterpriseValue, netDebt 等)
+        """
+        params = {
+            'symbol': ticker,
+            'limit': limit
+        }
+        if period == 'quarter':
+            params['period'] = 'quarter'
+        return self._get("enterprise-values", params=params) or []
+
+
 if __name__ == "__main__":
     fMPClient = FMPClient()
     print(fMPClient.get_quote('^TNX'))

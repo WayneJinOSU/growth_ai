@@ -1,353 +1,330 @@
 """
-Phase 1: The Iron Gate (铁律筛选)
-================================
-通过纯粹的数学纪律，剔除 90% 的不合格标的。此阶段不带任何感情色彩，只看客观数据。
+Phase 2: Financial Armor (财务装甲) - V3.7 Armored Sniper
+=========================================================
+确保在黎明到来前，公司不会死于失血。
 
-核心检查项:
-1. 20% 黄金分割线 - CAGR 和季度增速
-2. 减速预警 - 增速骤降检测
-3. 盈利路径二分法 - 盈利公司看 PEG，未盈利公司看毛利斜率和运营杠杆
+V3.7 铁律:
+1. 毛利率熔断 - 同比下降 < 300bps (3%)
+2. 债务窒息线 - Net Debt / EBITDA < 3.0x (或现金跑道 > 24个月)
+3. 稀释墙 - SBC 年稀释率 < 3%
+
+数据源: FMP Financial Statements
 """
 
 import numpy as np
-from typing import List
+from typing import List, Optional
 from tools.fmp import FMPClient
+from tools.yfinance_client import YFinanceClient
 from core.data_models import IronGateMetrics
-import config
 
 
 class IronGate:
     """
-    铁律筛选器：MGP 策略的第一道关卡
-
+    V3.7 财务装甲：MGP 策略的第二道关卡
+    
     职责：
-    - 获取财务数据 (年报、季报、估值比率)
-    - 计算 CAGR、季度增速、PEG、毛利斜率等核心指标
-    - 根据阈值判断是否通过筛选
+    - 毛利率安全检查
+    - 债务健康检查
+    - 股权稀释检查
     """
+    
+    # V3.7 铁律阈值
+    GROSS_MARGIN_MAX_DROP_BPS = 300  # 300 基点 = 3%
+    NET_DEBT_EBITDA_MAX = 3.0
+    CASH_RUNWAY_MIN_MONTHS = 24
+    SBC_DILUTION_MAX = 0.03  # 3%
 
-    def __init__(self, fmp_client: FMPClient):
+    def __init__(self, fmp_client: FMPClient, yf_client: YFinanceClient = None):
         self.fmp = fmp_client
+        self.yf = yf_client or YFinanceClient()
 
     def _calculate_cagr(self, start_value: float, end_value: float, years: int) -> float:
-        """
-        计算复合年均增长率 (CAGR - Compound Annual Growth Rate)
-
-        公式: CAGR = (终值 / 起值) ^ (1/年数) - 1
-
-        示例:
-            起值=100, 终值=150, 年数=3
-            CAGR = (150/100)^(1/3) - 1 = 14.47%
-
-        Args:
-            start_value: 起始年度的值 (如 3 年前的营收)
-            end_value: 结束年度的值 (如 当前营收)
-            years: 跨越的年数
-
-        Returns:
-            CAGR 比率 (如 0.1447 表示 14.47%)
-        """
+        """计算复合年均增长率"""
         if start_value <= 0 or years <= 0:
             return 0.0
         return (end_value / start_value) ** (1 / years) - 1
 
     def _calculate_slope(self, values: List[float]) -> float:
-        """
-        计算数据序列的线性回归斜率
-
-        用于判断毛利率是否呈上升趋势 (正斜率) 或下降趋势 (负斜率)
-
-        Args:
-            values: 按时间顺序排列的数值列表 (从旧到新)
-
-        Returns:
-            斜率值，正数表示上升趋势，负数表示下降趋势
-        """
+        """计算数据序列的线性回归斜率"""
         if len(values) < 2:
             return 0.0
         x = np.arange(len(values))
         y = np.array(values)
-        # np.polyfit 返回 [斜率, 截距]
         slope, _ = np.polyfit(x, y, 1)
         return slope
 
-    def analyze(self, ticker: str) -> IronGateMetrics:
+    def _check_gross_margin_safety(self, income_annual: List[dict]) -> tuple[bool, Optional[float], Optional[float], Optional[float]]:
         """
-        对单只股票执行铁律筛选分析
-
-        分析流程:
-        1. 获取年度和季度财务 data
-        2. 计算 CAGR (复合年均增长率)
-        3. 计算当季同比增速
-        4. 检测增速减速预警
-        5. 根据盈利状态选择不同的估值检查路径
-
-        Args:
-            ticker: 股票代码 (如 "AAPL", "SNOW")
-
+        毛利率熔断检查
+        
+        V3.7 铁律: 同比下降 < 300bps (3%)
+        
         Returns:
-            IronGateMetrics: 包含所有计算指标和通过/失败状态
+            (is_safe, current_gm, prev_gm, change_bps)
         """
-        # ========== 从配置中读取参数 ==========
-        cagr_years = config.CAGR_YEARS  # CAGR 计算年限 (默认 3 年)
-        quarters_for_decel = config.QUARTERS_FOR_DECEL_CHECK  # 减速预警需要的季度数 (默认 9)
-        quarters_for_yoy = config.QUARTERS_FOR_YOY  # 同比增速需要的季度数 (默认 5)
-        quarters_for_margin = config.QUARTERS_FOR_MARGIN_SLOPE  # 毛利斜率计算季度数 (默认 6)
-        quarters_for_ni = config.QUARTERS_FOR_NI_SUM  # TTM 净利润求和季度数 (默认 4)
-
-        # ========== 获取财务数据 ==========
-        print("    - Fetching financial data from FMP...")
-        # 年度利润表: 用于计算 CAGR
-        income_annual = self.fmp.get_income_statement(ticker, period='annual', limit=cagr_years + 1)
-        # 季度利润表: 用于计算同比增速、减速预警、毛利斜率等
-        income_quarterly = self.fmp.get_income_statement(ticker, period='quarter', limit=max(quarters_for_decel, quarters_for_yoy, quarters_for_margin))
-        # 季度现金流量表: 用于计算 SBC (Dilution Shield)
-        cash_flow_quarterly = self.fmp.get_cash_flow_statement(ticker, period='quarter', limit=4)
-        # TTM 估值比率: 用于获取 PE、PEG 等
-        ratios_ttm = self.fmp.get_ratios_ttm(ticker)
-        # 实时报价: 用于获取当前股价
-        quote = self.fmp.get_quote(ticker)
-
-        metrics = IronGateMetrics()
-
-        # ========== 数据完整性检查 ==========
         if not income_annual or len(income_annual) < 2:
-            # 数据不足时，不直接判负，而是将 CAGR 标记为 None，后续仅依赖季度增速判断
-            cagr_valid = False
-            metrics.revenue_cagr_ny = None
-            print("      [Warning] Insufficient annual data for CAGR.")
-        else:
-            cagr_valid = True
-
-        # ========== 1. CAGR 计算 (20% 黄金分割线 - 长期检验) ==========
-        # 检验公司是否具备"长跑能力"，而非昙花一现
-        if cagr_valid:
-            try:
-                latest_rev = income_annual[0]['revenue']  # 最新年度营收
-                old_rev = income_annual[-1]['revenue']  # N 年前营收
-                years = len(income_annual) - 1  # 实际跨越年数
-                cagr = self._calculate_cagr(old_rev, latest_rev, years)
-                metrics.revenue_cagr_ny = cagr  # 字段名保留兼容性 (实际按 config 配置)
-                print(f"      CAGR ({years}y): {cagr:.1%} (Threshold: {config.GROWTH_THRESHOLD_CAGR:.1%})")
-            except Exception:
-                metrics.revenue_cagr_ny = None
-                cagr_valid = False
-
-
-        # ========== 2. 当季同比增速 (20% 黄金分割线 - 动能检验) ==========
-        if not income_quarterly or len(income_quarterly) < quarters_for_yoy:
-            metrics.passed = False
-            metrics.fail_reason = f"Insufficient quarterly data (need {quarters_for_yoy})"
-            print(f"      [Fail] {metrics.fail_reason}")
-            return metrics
-
+            return True, None, None, None
+        
         try:
-            # Q0 vs Q-4: 当前季度 vs 去年同期
-            current_rev = income_quarterly[0]['revenue']
-            prev_year_q_rev = income_quarterly[quarters_for_yoy - 1]['revenue']
-            current_growth = (current_rev - prev_year_q_rev) / prev_year_q_rev
-            metrics.revenue_growth_current_q = current_growth
-            print(f"      Current Q Growth: {current_growth:.1%} (Threshold: {config.GROWTH_THRESHOLD_QUARTER:.1%})")
-
-            # ========== 3. 减速预警 (Deceleration Alarm) ==========
-            # 比较: 今年增速 vs 去年同期增速
-            # 如果增速从 60% 骤降至 25% (跌幅超过一半)，视为"成长逻辑破损"
-            decel_index = quarters_for_decel - 1  # Q-8 的索引位置
-            prev_rev = income_quarterly[quarters_for_yoy - 1]['revenue']  # Q-4 营收
-            prev_prev_rev = income_quarterly[decel_index]['revenue'] if len(
-                income_quarterly) > decel_index else 0  # Q-8 营收
-
-            if prev_prev_rev > 0:
-                # 去年同期的增速: (Q-4 - Q-8) / Q-8
-                prev_growth = (prev_rev - prev_prev_rev) / prev_prev_rev
-                metrics.revenue_growth_prev_y_q = prev_growth
-                print(f"      Previous Year Q Growth: {prev_growth:.1%}")
-            else:
-                # 数据不足时，假设增速稳定
-                metrics.revenue_growth_prev_y_q = current_growth
+            # 当前年度
+            rev_current = income_annual[0].get('revenue', 0)
+            gp_current = income_annual[0].get('grossProfit', 0)
+            gm_current = gp_current / rev_current if rev_current > 0 else None
+            
+            # 去年
+            rev_prev = income_annual[1].get('revenue', 0)
+            gp_prev = income_annual[1].get('grossProfit', 0)
+            gm_prev = gp_prev / rev_prev if rev_prev > 0 else None
+            
+            if gm_current is None or gm_prev is None:
+                return True, gm_current, gm_prev, None
+            
+            # 变化 (基点)
+            change_bps = (gm_current - gm_prev) * 10000
+            is_safe = change_bps >= -self.GROSS_MARGIN_MAX_DROP_BPS
+            
+            return is_safe, gm_current, gm_prev, change_bps
         except Exception as e:
+            print(f"      [Warning] Gross margin check failed: {e}")
+            return True, None, None, None
+
+    def _check_debt_safety(self, ticker: str, balance_sheet: List[dict], cashflow: List[dict]) -> tuple[bool, Optional[float], Optional[float], Optional[float], Optional[float]]:
+        """
+        债务窒息线检查
+        
+        V3.7 铁律:
+        - 主要: Net Debt / EBITDA < 3.0x
+        - 备选: 现金跑道 > 24 个月
+        
+        Returns:
+            (is_safe, net_debt, ebitda, net_debt_to_ebitda, cash_runway_months)
+        """
+        if not balance_sheet:
+            return True, None, None, None, None
+        
+        try:
+            # 获取最新资产负债表数据
+            bs = balance_sheet[0]
+            
+            # 计算 Net Debt = Total Debt - Cash
+            total_debt = bs.get('totalDebt', 0) or 0
+            cash = bs.get('cashAndCashEquivalents', 0) or bs.get('cashAndShortTermInvestments', 0) or 0
+            net_debt = total_debt - cash
+            
+            # 获取 EBITDA (从 Enterprise Values 或计算)
+            # 备选: 从 Key Metrics 获取
+            key_metrics = self.fmp.get_key_metrics(ticker, period='annual', limit=1)
+            ebitda = None
+            if key_metrics:
+                ebitda = key_metrics[0].get('ebitda')
+            
+            # 如果没有 EBITDA，尝试计算
+            if not ebitda and cashflow:
+                # EBITDA ≈ Operating Cash Flow + Interest + Taxes - CapEx changes
+                # 简化计算: 使用 Operating Income + D&A
+                income = self.fmp.get_income_statement(ticker, period='annual', limit=1)
+                if income:
+                    operating_income = income[0].get('operatingIncome', 0) or 0
+                    # D&A 从现金流量表获取
+                    da = cashflow[0].get('depreciationAndAmortization', 0) or 0
+                    ebitda = operating_income + da
+            
+            # 计算 Net Debt / EBITDA
+            net_debt_to_ebitda = None
+            if ebitda and ebitda > 0:
+                net_debt_to_ebitda = net_debt / ebitda
+            
+            # 计算现金跑道 (备选)
+            cash_runway_months = None
+            if cashflow and cash > 0:
+                # 使用最近的自由现金流
+                fcf = cashflow[0].get('freeCashFlow', 0) or 0
+                if fcf < 0:  # 烧钱状态
+                    monthly_burn = abs(fcf) / 12
+                    cash_runway_months = cash / monthly_burn if monthly_burn > 0 else float('inf')
+                else:
+                    cash_runway_months = float('inf')  # 不烧钱
+            
+            # 判断是否安全
+            is_safe = True
+            
+            # 主要检查: Net Debt / EBITDA
+            if net_debt_to_ebitda is not None:
+                if net_debt_to_ebitda > self.NET_DEBT_EBITDA_MAX:
+                    # 检查备选: 现金跑道
+                    if cash_runway_months is not None and cash_runway_months >= self.CASH_RUNWAY_MIN_MONTHS:
+                        is_safe = True  # 备选通过
+                    else:
+                        is_safe = False
+            
+            return is_safe, net_debt, ebitda, net_debt_to_ebitda, cash_runway_months
+        except Exception as e:
+            print(f"      [Warning] Debt safety check failed: {e}")
+            return True, None, None, None, None
+
+    def _check_dilution_safety(self, ticker: str, cashflow: List[dict], market_cap: Optional[float]) -> tuple[bool, Optional[float], Optional[float], Optional[float]]:
+        """
+        稀释墙检查
+        
+        V3.7 铁律: SBC 年稀释率 < 3%
+        
+        Returns:
+            (is_safe, sbc_annual, market_cap, dilution_rate)
+        """
+        if not cashflow:
+            return True, None, market_cap, None
+        
+        try:
+            # 获取年度 SBC
+            sbc_annual = cashflow[0].get('stockBasedCompensation', 0) or 0
+            
+            # 获取市值 (如果未提供)
+            if not market_cap:
+                market_cap = self.yf.get_market_cap(ticker)
+            
+            if not market_cap or market_cap <= 0:
+                return True, sbc_annual, market_cap, None
+            
+            # 计算稀释率
+            dilution_rate = sbc_annual / market_cap
+            is_safe = dilution_rate <= self.SBC_DILUTION_MAX
+            
+            return is_safe, sbc_annual, market_cap, dilution_rate
+        except Exception as e:
+            print(f"      [Warning] Dilution safety check failed: {e}")
+            return True, None, market_cap, None
+
+    def analyze(self, ticker: str, market_cap: Optional[float] = None) -> IronGateMetrics:
+        """
+        执行 V3.7 财务装甲分析
+        
+        Args:
+            ticker: 股票代码
+            market_cap: 市值 (可选，来自 Gatekeeper)
+            
+        Returns:
+            IronGateMetrics: 包含所有财务装甲指标
+        """
+        print(f"  [Phase 2] Financial Armor Analysis for {ticker}...")
+        
+        metrics = IronGateMetrics()
+        
+        # ========== 获取财务数据 ==========
+        print("    - Fetching financial data...")
+        income_annual = self.fmp.get_income_statement(ticker, period='annual', limit=5)
+        income_quarterly = self.fmp.get_income_statement(ticker, period='quarter', limit=9)
+        balance_annual = self.fmp.get_balance_sheet(ticker, period='annual', limit=3)
+        cashflow_annual = self.fmp.get_cash_flow_statement(ticker, period='annual', limit=3)
+        cashflow_quarterly = self.fmp.get_cash_flow_statement(ticker, period='quarter', limit=4)
+        
+        # ========== 1. 毛利率熔断 ==========
+        print("    - Iron Rule #1: Gross Margin Safety...")
+        gm_safe, gm_current, gm_prev, gm_change_bps = self._check_gross_margin_safety(income_annual)
+        
+        metrics.gross_margin_current = gm_current
+        metrics.gross_margin_prev_year = gm_prev
+        metrics.gross_margin_yoy_change_bps = gm_change_bps
+        metrics.gross_margin_safe = gm_safe
+        
+        if gm_change_bps is not None:
+            print(f"      Current GM: {gm_current:.1%} | Prev Year: {gm_prev:.1%} | Change: {gm_change_bps:+.0f} bps")
+            print(f"      Result: {'SAFE' if gm_safe else 'FAILED (>300bps drop)'}")
+        else:
+            print("      N/A (insufficient data)")
+        
+        # ========== 2. 债务窒息线 ==========
+        print("    - Iron Rule #2: Debt Safety...")
+        debt_safe, net_debt, ebitda, nd_ebitda, runway = self._check_debt_safety(ticker, balance_annual, cashflow_annual)
+        
+        metrics.net_debt = net_debt
+        metrics.ebitda = ebitda
+        metrics.net_debt_to_ebitda = nd_ebitda
+        metrics.cash_runway_months = runway
+        metrics.debt_safe = debt_safe
+        
+        if nd_ebitda is not None:
+            print(f"      Net Debt: ${net_debt/1e9:.1f}B | EBITDA: ${ebitda/1e9:.1f}B | Ratio: {nd_ebitda:.2f}x")
+        if runway is not None and runway != float('inf'):
+            print(f"      Cash Runway: {runway:.0f} months")
+        print(f"      Result: {'SAFE' if debt_safe else 'FAILED (debt too high)'}")
+        
+        # ========== 3. 稀释墙 ==========
+        print("    - Iron Rule #3: Dilution Safety...")
+        dilution_safe, sbc, mkt_cap, dilution_rate = self._check_dilution_safety(ticker, cashflow_annual, market_cap)
+        
+        metrics.sbc_annual = sbc
+        metrics.market_cap = mkt_cap
+        metrics.sbc_dilution_rate = dilution_rate
+        metrics.dilution_safe = dilution_safe
+        
+        if dilution_rate is not None:
+            print(f"      Annual SBC: ${sbc/1e6:.0f}M | Market Cap: ${mkt_cap/1e9:.1f}B | Dilution: {dilution_rate:.2%}")
+            print(f"      Result: {'SAFE' if dilution_safe else 'FAILED (>3% dilution)'}")
+        else:
+            print("      N/A (insufficient data)")
+        
+        # ========== Legacy Metrics (保留兼容性) ==========
+        print("    - Computing legacy metrics...")
+        self._compute_legacy_metrics(ticker, metrics, income_annual, income_quarterly, cashflow_quarterly)
+        
+        # ========== 综合判断 ==========
+        all_safe = metrics.gross_margin_safe and metrics.debt_safe and metrics.dilution_safe
+        
+        if not all_safe:
+            fail_reasons = []
+            if not metrics.gross_margin_safe:
+                fail_reasons.append(f"Gross margin dropped {abs(gm_change_bps):.0f}bps (>300bps)")
+            if not metrics.debt_safe:
+                fail_reasons.append(f"Net Debt/EBITDA {nd_ebitda:.1f}x (>3.0x)")
+            if not metrics.dilution_safe:
+                fail_reasons.append(f"SBC dilution {dilution_rate:.1%} (>3%)")
+            metrics.fail_reason = "; ".join(fail_reasons)
             metrics.passed = False
-            metrics.fail_reason = f"Data Error: {str(e)}"
-            return metrics
-
-        # ========== 阈值检查: 增长率 ==========
-        # 白皮书: "如果 CAGR < 20% 且 当季增速 < 20%，直接淘汰"
-        # 改进逻辑: 如果没有 CAGR 数据 (新股)，仅检查季度增速
-        
-        passed_growth_gate = False
-        
-        if metrics.revenue_cagr_ny is None:
-             # Case 1: 新股 (无 CAGR)，仅看爆发力
-            if metrics.revenue_growth_current_q >= config.GROWTH_THRESHOLD_QUARTER:
-                passed_growth_gate = True
-            else:
-                metrics.fail_reason = f"Low Growth (New IPO): Q_Growth {metrics.revenue_growth_current_q:.1%} < {config.GROWTH_THRESHOLD_QUARTER:.1%}"
+            print(f"    - Financial Armor FAILED: {metrics.fail_reason}")
         else:
-            # Case 2: 老股，看长跑能力 OR 爆发力 (二者满足其一即可)
-            if (metrics.revenue_cagr_ny >= config.GROWTH_THRESHOLD_CAGR) or \
-               (metrics.revenue_growth_current_q >= config.GROWTH_THRESHOLD_QUARTER):
-                passed_growth_gate = True
-            else:
-                metrics.fail_reason = f"Low Growth: CAGR {metrics.revenue_cagr_ny:.1%}, Q_Growth {metrics.revenue_growth_current_q:.1%}"
-
-        if not passed_growth_gate:
-            metrics.passed = False
-            print(f"      [Fail] {metrics.fail_reason}")
-            return metrics
-
-        # ========== 2.5 Dilution Shield (股权稀释盾 - V3.2) ==========
-        # 防止"印股票换增长"
+            metrics.passed = True
+            print(f"    - Financial Armor PASSED for {ticker}")
         
-        # Check A: SBC / Revenue > 20% -> 淘汰
-        sbc_sum = 0
-        rev_sum = 0
-        if cash_flow_quarterly and len(cash_flow_quarterly) >= 4:
-             # Calculate TTM SBC
-             sbc_sum = sum(q.get('stockBasedCompensation', 0) for q in cash_flow_quarterly[:4])
-             # Calculate TTM Revenue (using income_quarterly to match periods ideally, but need to align dates. 
-             # For simplicity, assuming lists are aligned by latest quarter.)
-             if income_quarterly and len(income_quarterly) >= 4:
-                 rev_sum = sum(q.get('revenue', 0) for q in income_quarterly[:4])
-        
-        if rev_sum > 0:
-            sbc_ratio = sbc_sum / rev_sum
-            metrics.sbc_revenue_ratio = sbc_ratio
-            print(f"      SBC/Revenue Ratio: {sbc_ratio:.1%}")
-            if sbc_ratio > 0.20:
-                metrics.passed = False
-                metrics.fail_reason = f"Excessive SBC: {sbc_ratio:.1%} of Revenue (>20%)"
-                print(f"      [Fail] {metrics.fail_reason}")
-                return metrics
-        
-        # Check B: Share Count Growth
-        # 比较最新季度 vs 去年同期季度的稀释股本
-        if income_quarterly and len(income_quarterly) >= quarters_for_yoy:
-             curr_shares = income_quarterly[0].get('weightedAverageShsOutDil', 0)
-             old_shares = income_quarterly[quarters_for_yoy - 1].get('weightedAverageShsOutDil', 0)
-             
-             if old_shares > 0:
-                 share_growth = (curr_shares - old_shares) / old_shares
-                 metrics.share_count_growth = share_growth
-                 print(f"      Share Count Growth (YoY): {share_growth:.1%}")
-                 
-                 # 警报: 如果股本增长过快 (例如 > 5%) 且 营收增长也仅仅是略高，说明含金量低。
-                 # MGP 规则: "关注营收增长 vs 股本增长"。
-                 # 这里我们设置一个软性门槛或直接淘汰? 白皮书说"每股含金量极低"。
-                 # 我们可以要求 Revenue Growth > Share Growth + 10% ? 
-                 # 或者由 Tribunal 判定? 
-                 # V3.2 规则: "如果营收增长 30%，但流通股本增长 15%，实际每股含金量极低。"
-                 # 暂时作为 Metrics 输出，如果股本增长 > 20% 直接淘汰? 
-                 # 让我们设定: 如果 股本增长 > 10% 且 (营收增速 - 股本增长) < 10%，则标记风险
-                 # 目前仅记录，若 SBC pass 则 pass check A.
-                 pass
-        
-        metrics.dilution_shield_passed = True
-
-        # ========== 阈值检查: 减速预警 ==========
-        # 只有当前期增速 > 40% 时才检测减速 (高增长股才有减速风险)
-        if metrics.revenue_growth_prev_y_q and metrics.revenue_growth_prev_y_q > config.DECEL_PREV_GROWTH_THRESHOLD:
-            # 如果增速下降超过 50%，触发警报
-            if metrics.revenue_growth_current_q < (metrics.revenue_growth_prev_y_q * config.DECEL_DROP_RATIO):
-                metrics.passed = False
-                metrics.fail_reason = f"Deceleration Alarm: {metrics.revenue_growth_prev_y_q:.1%} -> {metrics.revenue_growth_current_q:.1%}"
-                print(f"      [Fail] {metrics.fail_reason}")
-                return metrics
-
-        # ========== 4. 盈利路径二分法 (Profitability Bifurcation) ==========
-        # 盈利公司和未盈利公司采用两套完全不同的生存标准
-
-        # 判断是否实质盈利: 
-        # 判断是否实质盈利: 
-        # 旧逻辑: TTM 净利润 > 0 即为盈利
-        # 新逻辑: TTM 净利率 > 3% 才算实质盈利 (微利企业归入未盈利组)
-        
-        is_profitable = False
-        ttm_net_margin = 0.0
-        
-        if ratios_ttm:
-            ttm_net_margin = ratios_ttm.get('netProfitMarginTTM', 0)
-        
-        print(f"      TTM Net Margin: {ttm_net_margin:.1%}")
-        
-        if ttm_net_margin > config.MIN_NET_MARGIN_FOR_PEG:
-            is_profitable = True
-            print("      Mode: Profitable (Checking PEG)")
-        else:
-            print("      Mode: Non-Profitable (Checking Margin Slope & Leverage)")
-
-        if is_profitable:
-            # ========== A 类: 已盈利公司 - 检查 PEG ==========
-            # PEG = PE / Growth Rate
-            # PEG < 1.0 极度低估, PEG > 2.0 泡沫风险
-
-            pe = ratios_ttm.get('peRatioTTM') if ratios_ttm else None
-            if pe is None:
-                # 备用计算: PE = 股价 / TTM EPS
-                eps = sum(q['eps'] for q in income_quarterly[:quarters_for_ni])
-                price = quote.get('price') if quote else 0
-                if eps > 0 and price > 0:
-                    pe = price / eps
-
-            # 使用营收增速作为 Growth Rate (高增长科技股 EPS 可能波动大)
-            growth_rate = metrics.revenue_growth_current_q * 100  # 转换为百分比数值
-
-            # 优先使用 FMP 提供的 PEG
-            peg = ratios_ttm.get('pegRatioTTM') if ratios_ttm else None
-
-            # 如果 FMP 没有 PEG，手动计算
-            if not peg and pe and growth_rate > 0:
-                peg = pe / growth_rate
-
-            metrics.peg_ratio = peg
-            print(f"      PE: {pe:.2f} | PEG: {peg:.2f}" if peg else f"      PE: {pe:.2f} | PEG: N/A")
-
-            # PEG 阈值检查
-            if peg and peg > config.PEG_THRESHOLD_BUBBLE:
-                metrics.passed = False
-                metrics.fail_reason = f"PEG too high: {peg:.2f} (threshold: {config.PEG_THRESHOLD_BUBBLE})"
-                print(f"      [Fail] {metrics.fail_reason}")
-                return metrics
-        else:
-            # ========== B 类: 未盈利公司 - 证明"烧钱是有意义的" ==========
-
-            # --- 检查 1: 毛利率斜率 (Gross Margin Slope) ---
-            # 过去 4-6 个季度，毛利率必须呈现上升趋势
-            # 这证明了规模效应的存在 (卖得越多，单位成本越低)
-            margins = []
-            for q in reversed(income_quarterly[:quarters_for_margin]):  # 从旧到新排列
-                if q['revenue'] > 0:
-                    gm = q['grossProfit'] / q['revenue']  # 毛利率 = 毛利 / 营收
-                    margins.append(gm)
-
-            slope = self._calculate_slope(margins)
-            metrics.gross_margin_slope = slope
-            print(f"      Gross Margin Slope: {slope:.4f}")
-
-            # 斜率检查: 必须为正 (上升趋势)，允许轻微噪音
-            if slope < config.GROSS_MARGIN_SLOPE_TOLERANCE:
-                metrics.passed = False
-                metrics.fail_reason = f"Gross Margin Declining (Slope: {slope:.4f})"
-                print(f"      [Fail] {metrics.fail_reason}")
-                return metrics
-
-            # --- 检查 2: 运营杠杆 (Operating Leverage) ---
-            # 营收增速必须快于运营费用 (OpEx) 增速
-            # 这证明公司在扩张过程中效率在提升
-            curr_opex = income_quarterly[0]['operatingExpenses']
-            old_opex = income_quarterly[quarters_for_yoy - 1]['operatingExpenses']
-            opex_growth = (curr_opex - old_opex) / old_opex if old_opex > 0 else 0
-
-            metrics.opex_growth = opex_growth
-            metrics.operating_leverage = metrics.revenue_growth_current_q > opex_growth
-            print(f"      OpEx Growth: {opex_growth:.1%} | Leverage: {'YES' if metrics.operating_leverage else 'NO'}")
-
-            if not metrics.operating_leverage:
-                metrics.passed = False
-                metrics.fail_reason = f"No Operating Leverage: Rev {metrics.revenue_growth_current_q:.1%} < OpEx {opex_growth:.1%}"
-                print(f"      [Fail] {metrics.fail_reason}")
-                return metrics
-
-        # ========== 全部检查通过 ==========
-        metrics.passed = True
-        print(f"    - Iron Gate PASSED for {ticker}")
         return metrics
+
+    def _compute_legacy_metrics(self, ticker: str, metrics: IronGateMetrics, 
+                                 income_annual: List[dict], income_quarterly: List[dict],
+                                 cashflow_quarterly: List[dict]):
+        """计算 V3.4 兼容的 legacy metrics"""
+        
+        # CAGR
+        if income_annual and len(income_annual) >= 3:
+            try:
+                latest_rev = income_annual[0].get('revenue', 0)
+                old_rev = income_annual[-1].get('revenue', 0)
+                years = len(income_annual) - 1
+                if old_rev > 0:
+                    metrics.revenue_cagr_ny = self._calculate_cagr(old_rev, latest_rev, years)
+                    print(f"      Revenue CAGR ({years}y): {metrics.revenue_cagr_ny:.1%}")
+            except Exception:
+                pass
+        
+        # 季度同比增速
+        if income_quarterly and len(income_quarterly) >= 5:
+            try:
+                current_rev = income_quarterly[0].get('revenue', 0)
+                prev_year_q_rev = income_quarterly[4].get('revenue', 0)
+                if prev_year_q_rev > 0:
+                    metrics.revenue_growth_current_q = (current_rev - prev_year_q_rev) / prev_year_q_rev
+                    print(f"      Current Q YoY Growth: {metrics.revenue_growth_current_q:.1%}")
+            except Exception:
+                pass
+        
+        # SBC/Revenue Ratio
+        if cashflow_quarterly and income_quarterly and len(cashflow_quarterly) >= 4 and len(income_quarterly) >= 4:
+            try:
+                sbc_sum = sum(q.get('stockBasedCompensation', 0) or 0 for q in cashflow_quarterly[:4])
+                rev_sum = sum(q.get('revenue', 0) or 0 for q in income_quarterly[:4])
+                if rev_sum > 0:
+                    metrics.sbc_revenue_ratio = sbc_sum / rev_sum
+                    print(f"      SBC/Revenue Ratio (TTM): {metrics.sbc_revenue_ratio:.1%}")
+            except Exception:
+                pass
+        
+        # Dilution Shield 设为 V3.7 的 dilution_safe
+        metrics.dilution_shield_passed = metrics.dilution_safe

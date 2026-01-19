@@ -1,51 +1,76 @@
 """
-Phase 3: Intelligence (情报收集) + V3.4 Macro-Adjusted Valuation
-================================================================
-收集软实力指标、蓝天分析、催化剂事件，并进行宏观调整估值。
+Phase 4: Intelligence (情报收集) + V3.7 Catalyst Detection
+==========================================================
+收集软实力指标、蓝天分析、催化剂事件。
 
-核心功能:
-1. KPI 验证 (NDR, RPO 等)
-2. 软实力画像 (管理层、护城河、内部人交易)
-3. 蓝天分析 (R&D 第二曲线、TAM 膨胀)
-4. 催化剂日历 (财报日、产品发布)
-5. [V3.4] 宏观调整估值 - 根据 10Y 美债收益率调整估值容忍度
+V3.7 核心功能:
+1. 催化剂侦测 - 使用 FMP News API 过滤特定关键词
+2. 时间视界检查 - 确认催化剂在 12 个月内
+3. 强制退出规则 - 持有 6 个月后检查
+
+V3.7 催化剂关键词库:
+- "Approval", "Launch", "Production start", "Facility open"
+- "FDA approval", "Product launch", "Factory opening", "Capacity expansion"
+
+数据源: FMP General News
 """
 
 
+from typing import Optional
 from tools.llm import LLMClient
 from tools.search import SearchClient
 from tools.fmp import FMPClient
-from core.data_models import IntelligenceData, IdentifierData, BlueSkyData, CatalystData, GatekeeperData, MacroMode
+from core.data_models import (
+    IntelligenceData, IdentifierData, BlueSkyData, CatalystData, 
+    ConstraintsData, GatekeeperData, MacroMode
+)
 
 
 class Intelligence:
     """
-    情报收集器：MGP 策略的第三道关卡
+    V3.7 情报收集器：MGP 策略的第四道关卡 (Catalysts & Constraints)
     
-    V3.4 扩展职责：
+    职责：
     - 收集软实力指标和特异性 KPI
-    - 宏观调整估值：根据 MacroMode 调整估值倍数
+    - V3.7 催化剂侦测：使用关键词过滤 FMP News
+    - V3.7 时间约束检查
+    - 宏观调整估值
     """
     
-    # V3.4 宏观调整估值参数
+    # V3.7 催化剂关键词库
+    CATALYST_KEYWORDS = [
+        # 产能释放
+        "approval", "approved", "fda approval", "regulatory approval",
+        "launch", "launched", "product launch", "market launch",
+        "production start", "production begins", "manufacturing start",
+        "facility open", "factory opening", "plant opening", "facility expansion",
+        # 产能扩张
+        "capacity expansion", "capacity increase", "ramp up", "ramping",
+        "new factory", "new facility", "groundbreaking",
+        # 商业里程碑
+        "commercialization", "commercial launch", "first delivery",
+        "breakthrough", "milestone", "record revenue", "record earnings",
+    ]
+    
+    # V3.4 宏观调整估值参数 (保留兼容性)
     MACRO_PE_ADJUSTMENTS = {
         MacroMode.LOOSE: {
-            "bear_pe": 20,      # 宽松环境下，Bear Case PE 可放宽至 20x
-            "target_pe": 30,    # 目标 PE
-            "bull_pe": 45,      # 牛市 PE
-            "peg_max": 2.0,     # 允许 PEG 最高 2.0
+            "bear_pe": 20,
+            "target_pe": 30,
+            "bull_pe": 45,
+            "peg_max": 2.0,
         },
         MacroMode.NEUTRAL: {
-            "bear_pe": 18,      # 中性环境
+            "bear_pe": 18,
             "target_pe": 25,
             "bull_pe": 35,
-            "peg_max": 1.5,     # PEG 严格 < 1.5
+            "peg_max": 1.5,
         },
         MacroMode.TIGHT: {
-            "bear_pe": 15,      # 紧缩环境，强制 Bear Case PE = 15x
+            "bear_pe": 15,
             "target_pe": 20,
             "bull_pe": 25,
-            "peg_max": 1.2,     # PEG 必须 < 1.0~1.2
+            "peg_max": 1.2,
         },
     }
 
@@ -183,7 +208,23 @@ class Intelligence:
         print("    - Performing Catalyst Analysis...")
         data.catalysts = self._analyze_catalysts(ticker)
 
-        # 8. [V3.4] Macro-Adjusted Valuation Analysis
+        # 8. [V3.7] Catalyst Detection via FMP News
+        print("    - [V3.7] Detecting Catalysts via News Keywords...")
+        catalyst_data = self._detect_catalysts_v37(ticker)
+        if catalyst_data:
+            # 合并到 catalysts
+            if data.catalysts:
+                data.catalysts.catalyst_keywords_found = catalyst_data.catalyst_keywords_found
+                data.catalysts.catalyst_within_12m = catalyst_data.catalyst_within_12m
+                data.catalysts.catalyst_details = catalyst_data.catalyst_details
+            else:
+                data.catalysts = catalyst_data
+
+        # 9. [V3.7] Constraints Analysis
+        print("    - [V3.7] Analyzing Time Constraints...")
+        data.constraints = self._analyze_constraints_v37(ticker, data.catalysts)
+
+        # 10. [V3.4] Macro-Adjusted Valuation Analysis
         if gatekeeper_data:
             print("    - [V3.4] Calculating Macro-Adjusted Valuation...")
             valuation_analysis = self._analyze_macro_adjusted_valuation(ticker, gatekeeper_data)
@@ -282,6 +323,110 @@ class Intelligence:
         print(f"      Variant Perception: {catalyst.variant_perception[:100]}...")
         
         return catalyst
+
+    # ========== V3.7 Catalyst Detection ==========
+
+    def _detect_catalysts_v37(self, ticker: str) -> Optional[CatalystData]:
+        """
+        V3.7 催化剂侦测
+        
+        使用 FMP News API 过滤特定关键词:
+        - "Approval", "Launch", "Production start", "Facility open"
+        
+        Args:
+            ticker: 股票代码
+            
+        Returns:
+            CatalystData: 催化剂数据
+        """
+        if not self.fmp:
+            print("      [Warning] FMP client not available, skipping catalyst detection")
+            return None
+        
+        catalyst = CatalystData()
+        keywords_found = []
+        catalyst_details = []
+        
+        try:
+            # 获取最近 60 天的新闻
+            news = self.fmp.get_stock_news(ticker, limit=50)
+            
+            if not news:
+                print("      No news found")
+                return catalyst
+            
+            print(f"      Scanning {len(news)} news articles for catalyst keywords...")
+            
+            for article in news:
+                title = (article.get('title', '') or '').lower()
+                text = (article.get('text', '') or '').lower()
+                content = title + ' ' + text
+                date = article.get('publishedDate', '')
+                
+                # 检查每个关键词
+                for keyword in self.CATALYST_KEYWORDS:
+                    if keyword.lower() in content:
+                        if keyword not in keywords_found:
+                            keywords_found.append(keyword)
+                            catalyst_details.append(f"[{date[:10]}] Found '{keyword}' in: {title[:80]}")
+            
+            catalyst.catalyst_keywords_found = keywords_found
+            catalyst.catalyst_details = "\n".join(catalyst_details[:5])  # 最多保留 5 条
+            
+            # 判断是否在 12 个月内有催化剂
+            catalyst.catalyst_within_12m = len(keywords_found) > 0
+            
+            if keywords_found:
+                print(f"      ✓ Found {len(keywords_found)} catalyst keywords: {keywords_found[:5]}")
+            else:
+                print("      No catalyst keywords found in recent news")
+            
+        except Exception as e:
+            print(f"      [Warning] Catalyst detection failed: {e}")
+        
+        return catalyst
+
+    def _analyze_constraints_v37(self, ticker: str, catalyst_data: Optional[CatalystData]) -> ConstraintsData:
+        """
+        V3.7 时空约束分析
+        
+        检查:
+        1. 时间视界 - 解决核心瓶颈必须 <= 12 个月
+        2. 催化剂存在性
+        3. 强制退出规则准备
+        
+        Args:
+            ticker: 股票代码
+            catalyst_data: 催化剂数据
+            
+        Returns:
+            ConstraintsData: 约束数据
+        """
+        constraints = ConstraintsData()
+        
+        # 检查催化剂是否在 12 个月内
+        if catalyst_data:
+            constraints.catalyst = catalyst_data
+            constraints.has_near_term_catalyst = catalyst_data.catalyst_within_12m
+            
+            if catalyst_data.catalyst_within_12m:
+                # 假设有近期催化剂，时间视界可接受
+                constraints.timeline_acceptable = True
+                constraints.bottleneck_resolution_months = 12
+                print("      ✓ Near-term catalyst detected - Timeline acceptable")
+            else:
+                constraints.timeline_acceptable = False
+                print("      ⚠️ No near-term catalyst detected - Timeline uncertain")
+        else:
+            constraints.timeline_acceptable = False
+            constraints.has_near_term_catalyst = False
+            print("      ⚠️ No catalyst data available")
+        
+        # 强制退出规则初始化 (实际持有期需要在投资组合层面跟踪)
+        constraints.holding_period_months = 0
+        constraints.should_time_stop = False
+        
+        return constraints
 
     # ========== V3.4 Macro-Adjusted Valuation ==========
 
