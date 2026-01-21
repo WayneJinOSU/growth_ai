@@ -9,7 +9,7 @@ class FMPClient:
         # 切换到更稳定的 stable 路径
         self.base_url = "https://financialmodelingprep.com/stable"
 
-        
+
     def _get(self, endpoint: str, params: Optional[Dict] = None, use_v3: bool = False) -> Any:
         if not self.api_key:
             raise ValueError("FMP_API_KEY is not set")

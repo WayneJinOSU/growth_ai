@@ -15,7 +15,6 @@ class SearchClient:
             print(f"Search Error: {e}")
             return []
 
-    # ========== V3.4 New Methods ==========
 
     def get_treasury_yield(self) -> Optional[float]:
         """
