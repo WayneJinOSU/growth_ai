@@ -13,7 +13,10 @@ class BusinessModel(str, Enum):
 
 
 class Decision(str, Enum):
-    # V3.4 New Decisions
+    # V3.5 New Decisions
+    FIRE = "FIRE"  # All gates passed (Ignition)
+    
+    # V3.4 Legacy Decisions
     TACTICAL_SNIPER = "TACTICAL SNIPER"
     STRATEGIC_COMPOUNDER = "STRATEGIC COMPOUNDER"
     TRAP = "TRAP"
@@ -24,7 +27,7 @@ class Decision(str, Enum):
     SPECULATIVE_BUY = "SPECULATIVE BUY"
     VALUE_TRAP = "VALUE TRAP"
     WATCH = "WATCH"
-    SKIP = "SKIP"  # For failed Iron Gate
+    SKIP = "SKIP"  # For failed Gates
 
 
 class MacroMode(str, Enum):
@@ -44,6 +47,7 @@ class GatekeeperData(BaseModel):
     macro_mode: MacroMode
     us10y_yield: Optional[float] = None
     vix_value: Optional[float] = None
+    future_revenue_cagr_3y: Optional[float] = None  # V3.5 New
     passed: bool
     fail_reason: Optional[str] = None
 
@@ -53,6 +57,15 @@ class ShadowAuditData(BaseModel):
     customer_quality_audit: Optional[str] = None
     is_fake_tech: bool = False
     has_king_maker_clients: bool = False
+    
+    # V3.5 New
+    app_store_rank: Optional[str] = None
+    marketing_efficiency: Optional[str] = None  # Organic Growth signal
+    organic_growth_confirmed: bool = False
+    
+    # Sandbagging (moved from Polygraph)
+    sandbagging_detected: bool = False
+    sandbagging_details: Optional[str] = None
 
 
 class PolygraphData(BaseModel):
@@ -61,7 +74,8 @@ class PolygraphData(BaseModel):
     details: Optional[str] = None
 
 
-class IronGateMetrics(BaseModel):
+class DeepAuditData(BaseModel):
+    """Formerly IronGateMetrics, expanded for V3.5"""
     revenue_cagr_ny: Optional[float] = None
     revenue_growth_current_q: Optional[float] = None
     revenue_growth_prev_y_q: Optional[float] = None
@@ -70,10 +84,19 @@ class IronGateMetrics(BaseModel):
     opex_growth: Optional[float] = None
     operating_leverage: Optional[bool] = None  # True if Rev Growth > OpEx Growth
     
-    # V3.2 New Metrics
+    # V3.2
     sbc_revenue_ratio: Optional[float] = None
     share_count_growth: Optional[float] = None
     dilution_shield_passed: Optional[bool] = None
+    
+    # V3.5 New Segment Specifics
+    ndr: Optional[float] = None  # SaaS
+    rpo_growth: Optional[float] = None # SaaS
+    rule_of_40: Optional[float] = None # Consumption
+    book_to_bill: Optional[float] = None # Hard Tech
+    inventory_health: Optional[str] = None # Hard Tech
+    take_rate_trend: Optional[str] = None # Marketplace
+    insider_selling_risk: bool = False # Universal Lie Detector
 
     passed: bool = False
     fail_reason: Optional[str] = None
@@ -89,9 +112,23 @@ class BlueSkyData(BaseModel):
     rnd_effectiveness: Optional[str] = None
     tam_expansion: Optional[str] = None
 
+
 class CatalystData(BaseModel):
     upcoming_events: List[str] = Field(default_factory=list)
     variant_perception: Optional[str] = None
+    coattail_effect: Optional[str] = None # V3.5
+
+
+class PhysicsData(BaseModel):
+    """V3.5 New: Quant/VPA Data"""
+    sma_20: Optional[float] = None
+    current_price: Optional[float] = None
+    relative_volume: Optional[float] = None # RVol
+    is_accumulation: bool = False
+    is_ignition: bool = False
+    is_broken_trend: bool = False # Price < SMA20 for 3 days
+    details: Optional[str] = None
+
 
 class IntelligenceData(BaseModel):
     kpi_values: Dict[str, Any] = Field(default_factory=dict)
@@ -122,14 +159,24 @@ class CompanyData(BaseModel):
 
     # Phases
     gatekeeper: Optional[GatekeeperData] = None
-    iron_gate: Optional[IronGateMetrics] = None
+    deep_audit: Optional[DeepAuditData] = None # Renamed from iron_gate
     shadow_audit: Optional[ShadowAuditData] = None
     identifier: Optional[IdentifierData] = None
     polygraph: Optional[PolygraphData] = None
     intelligence: Optional[IntelligenceData] = None
+    physics: Optional[PhysicsData] = None # V3.5 New
     tribunal: Optional[TribunalDecision] = None
 
     error: Optional[str] = None
+    
+    # Compatibility property for legacy code if needed (optional)
+    @property
+    def iron_gate(self) -> Optional[DeepAuditData]:
+        return self.deep_audit
+
+    @iron_gate.setter
+    def iron_gate(self, value: Optional[DeepAuditData]):
+        self.deep_audit = value
 
 
 class AnalysisReport(BaseModel):
@@ -138,4 +185,3 @@ class AnalysisReport(BaseModel):
     final_decision: Decision
     summary: str
     details: CompanyData
-

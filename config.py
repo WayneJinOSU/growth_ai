@@ -15,37 +15,57 @@ if not OPENAI_API_KEY:
 if not TAVILY_API_KEY:
     print("Warning: TAVILY_API_KEY not found in environment variables.")
 
-# ========== MGP Strategy Parameters ==========
-# 可动态调整的策略阈值
+# ========== MGP Strategy Parameters V3.5 ==========
 
-# --- Phase 1: Iron Gate ---
-# CAGR 计算年限 (原为5年，改为3年)
+# --- Phase 0: Gatekeeper ---
+# V3.5 Absolute Blacklist
+BLACKLIST_SECTORS = [
+    "Fashion", "Apparel", "Footwear",  # Pure Consumer Fashion
+    "Banks - Regional", "Regional Banks", # Black Box Balance Sheets
+    "Oil & Gas", "Energy", "Metals & Mining", "Gold", "Silver", # Commodities
+    "Auto Manufacturers", "Airlines", "Airports" # Heavy Asset / Unions
+]
+
+# V3.5 Future Growth Threshold (The 20% Iron Rule)
+FUTURE_CAGR_THRESHOLD = 0.20
+
+# --- Phase 1: Deep Audit (formerly Iron Gate) ---
+# CAGR Calculation Years
 CAGR_YEARS = 3
 
-# 季度数据配置
-QUARTERS_FOR_YOY = 5               # 同比增速需要的季度数 (Q0 vs Q-4)
-QUARTERS_FOR_DECEL_CHECK = 9       # 减速预警需要的季度数 (支持 Q-8 计算)
-QUARTERS_FOR_MARGIN_SLOPE = 6      # 毛利斜率计算的季度数
-QUARTERS_FOR_NI_SUM = 4            # 净利润求和的季度数 (TTM)
+# Quarterly Data Config
+QUARTERS_FOR_YOY = 5
+QUARTERS_FOR_DECEL_CHECK = 9
+QUARTERS_FOR_MARGIN_SLOPE = 6
+QUARTERS_FOR_NI_SUM = 4
 
-# 增长率阈值
-GROWTH_THRESHOLD_CAGR = 0.15       # CAGR 最低要求 (15%)
-GROWTH_THRESHOLD_QUARTER = 0.20    # 季度同比增速最低要求 (20%)
+# Thresholds
+GROWTH_THRESHOLD_CAGR = 0.15
+GROWTH_THRESHOLD_QUARTER = 0.20
+DECEL_PREV_GROWTH_THRESHOLD = 0.40
+DECEL_DROP_RATIO = 0.7
 
-# 减速预警：前期增速阈值 & 容许下降比例
-DECEL_PREV_GROWTH_THRESHOLD = 0.40  # 只有当前期增速 > 40% 时才检测减速
-DECEL_DROP_RATIO = 0.7              # 增速下降超过 50% 触发警报
+# V3.5 Segment Specific Thresholds
+NDR_THRESHOLD = 1.10  # 110% Net Dollar Retention
+RULE_OF_40_THRESHOLD = 0.40 # Rev Growth + FCF Margin
+SBC_THRESHOLD_STRICT = 0.20 # 20% max
+SBC_THRESHOLD_KILL = 0.25   # 25% automatic kill
 
-# PEG 阈值
-MIN_NET_MARGIN_FOR_PEG = 0.03  # 净利率 > 3% 才被视为实质盈利 (否则走未盈利逻辑)
-PEG_THRESHOLD_STRONG_BUY = 1.0     # PEG < 1.0 -> 极度低估
-PEG_THRESHOLD_BUY = 1.5            # PEG 1.0 - 1.5 -> 合理买入
-PEG_THRESHOLD_BUBBLE = 2.0         # PEG > 2.0 -> 泡沫风险 (Iron Gate 淘汰线)
-PEG_THRESHOLD_SELL = 2.5           # PEG > 2.5 -> 卖出信号 (Watchtower)
+# Profitability
+MIN_NET_MARGIN_FOR_PEG = 0.03
+PEG_THRESHOLD_STRONG_BUY = 1.0
+PEG_THRESHOLD_BUY = 1.5
+PEG_THRESHOLD_BUBBLE = 2.0
+PEG_THRESHOLD_SELL = 2.5
+PEG_DREAM_PREMIUM = 2.0 # Allowed if R&D > 20% & New Growth > 50%
 
-# 毛利斜率噪音容忍度
-GROSS_MARGIN_SLOPE_TOLERANCE = -0.005  # 允许轻微下降
+GROSS_MARGIN_SLOPE_TOLERANCE = -0.005
 
-# --- Phase 4: Tribunal ---
-# 高速增长豁免线 (PEG > 2.0 但增速超过此值可豁免)
-HIGH_GROWTH_EXEMPTION = 0.40  # 40%
+# --- Phase 4: Physics (VPA) ---
+RVOL_ACCUMULATION = 1.5
+RVOL_IGNITION = 2.0
+SMA_PERIOD = 20
+ACCUMULATION_RANGE_PCT = 0.02 # 2% price range
+
+# --- Phase 7: Tribunal ---
+HIGH_GROWTH_EXEMPTION = 0.40

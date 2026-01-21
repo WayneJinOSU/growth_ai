@@ -1,14 +1,11 @@
 """
-Phase 3: Intelligence (情报收集) + V3.4 Macro-Adjusted Valuation
-================================================================
+Phase 3: Intelligence (情报收集) + Phase 4: Valuation (估值)
+============================================================
 收集软实力指标、蓝天分析、催化剂事件，并进行宏观调整估值。
 
 核心功能:
-1. KPI 验证 (NDR, RPO 等)
-2. 软实力画像 (管理层、护城河、内部人交易)
-3. 蓝天分析 (R&D 第二曲线、TAM 膨胀)
-4. 催化剂日历 (财报日、产品发布)
-5. [V3.4] 宏观调整估值 - 根据 10Y 美债收益率调整估值容忍度
+1. Phase 3: Intelligence (KPI 验证, 管理层诚信, 护城河)
+2. Phase 4: Valuation & Catalysts (蓝天分析, 催化剂, 宏观调整估值)
 """
 
 
@@ -22,12 +19,12 @@ class Intelligence:
     """
     情报收集器：MGP 策略的第三道关卡
     
-    V3.4 扩展职责：
+    V3.5 扩展职责：
     - 收集软实力指标和特异性 KPI
     - 宏观调整估值：根据 MacroMode 调整估值倍数
     """
     
-    # V3.4 宏观调整估值参数
+    # V3.5 宏观调整估值参数
     MACRO_PE_ADJUSTMENTS = {
         MacroMode.LOOSE: {
             "bear_pe": 20,      # 宽松环境下，Bear Case PE 可放宽至 20x
@@ -57,14 +54,12 @@ class Intelligence:
     def gather(self, ticker: str, identifier_data: IdentifierData, 
                gatekeeper_data: GatekeeperData = None) -> IntelligenceData:
         """
-        收集情报数据
-        
-        Args:
-            ticker: 股票代码
-            identifier_data: 商业模式识别数据
-            gatekeeper_data: V3.4 Gatekeeper 数据 (用于宏观调整)
+        收集 Phase 3 & 4 数据
         """
         data = IntelligenceData()
+
+        # ========== Phase 3: Intelligence (Soft Skills) ==========
+        print(f"  [Phase 3] Gathering Intelligence for {ticker}...")
 
         # 1. Verify Specific KPIs
         kpi_values = {}
@@ -175,17 +170,20 @@ class Intelligence:
         data.dislocation_context = self.llm.analyze_text(prompt_drop).strip()
         print(f"      Result: {data.dislocation_context[:100]}...")
 
-        # 6. Blue Sky Analysis (V3.2) - R&D & TAM
+        # ========== Phase 4: Valuation & Catalysts ==========
+        print(f"  [Phase 4] Analyzing Valuation & Catalysts for {ticker}...")
+
+        # 6. Blue Sky Analysis (V3.5) - R&D & TAM
         print("    - Performing Blue Sky Analysis...")
         data.blue_sky = self._analyze_blue_sky(ticker)
 
-        # 7. Catalyst Analysis (V3.2) - Events & Variant Perception
+        # 7. Catalyst Analysis (V3.5) - Events & Variant Perception
         print("    - Performing Catalyst Analysis...")
         data.catalysts = self._analyze_catalysts(ticker)
 
-        # 8. [V3.4] Macro-Adjusted Valuation Analysis
+        # 8. [V3.5] Macro-Adjusted Valuation Analysis
         if gatekeeper_data:
-            print("    - [V3.4] Calculating Macro-Adjusted Valuation...")
+            print("    - [V3.5] Calculating Macro-Adjusted Valuation...")
             valuation_analysis = self._analyze_macro_adjusted_valuation(ticker, gatekeeper_data)
             data.kpi_values["macro_valuation_analysis"] = valuation_analysis
 
@@ -283,11 +281,11 @@ class Intelligence:
         
         return catalyst
 
-    # ========== V3.4 Macro-Adjusted Valuation ==========
+    # ========== V3.5 Macro-Adjusted Valuation ==========
 
     def _analyze_macro_adjusted_valuation(self, ticker: str, gatekeeper_data: GatekeeperData) -> str:
         """
-        V3.4 宏观调整估值分析
+        V3.5 宏观调整估值分析
         
         根据当前宏观环境 (MacroMode) 调整估值倍数，计算 Bear/Target/Bull Case
         
@@ -322,7 +320,7 @@ class Intelligence:
         
         # 构建估值分析
         analysis_parts = []
-        analysis_parts.append("=== V3.4 Macro-Adjusted Valuation ===")
+        analysis_parts.append("=== V3.5 Macro-Adjusted Valuation ===")
         analysis_parts.append(f"Macro Environment: {macro_mode.value} (US10Y: {us10y:.2f}%)" if us10y else f"Macro Environment: {macro_mode.value}")
         if vix:
             vix_status = "⚠️ PANIC" if vix > 30 else "Normal"
