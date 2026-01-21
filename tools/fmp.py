@@ -8,9 +8,8 @@ class FMPClient:
         self.api_key = config.FMP_API_KEY
         # 切换到更稳定的 stable 路径
         self.base_url = "https://financialmodelingprep.com/stable"
-        # Historical price sometimes needs v3
-        self.v3_url = "https://financialmodelingprep.com/api/v3"
 
+        
     def _get(self, endpoint: str, params: Optional[Dict] = None, use_v3: bool = False) -> Any:
         if not self.api_key:
             raise ValueError("FMP_API_KEY is not set")
@@ -22,7 +21,7 @@ class FMPClient:
             # 拷贝一份，避免修改外部传入的字典
             params = params.copy()
 
-        base = self.v3_url if use_v3 else self.base_url
+        base = self.base_url
         url = f"{base}/{endpoint}"
         params['apikey'] = self.api_key
 
@@ -121,8 +120,6 @@ class FMPClient:
         if data and 'historical' in data:
             return data['historical'][:days] # Return last N days
         return []
-
-    # ========== V3.4 New Methods ==========
 
     def get_vix(self) -> Optional[float]:
         """
