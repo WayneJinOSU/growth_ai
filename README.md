@@ -121,6 +121,59 @@ graph TD
 
 ---
 
+## Phase 3: 软性情报 (Intelligence)
+
+**目标**：构建生意的定性画像，评估管理层与护城河
+
+```mermaid
+graph TD
+    Input[Shadow Passed] --> KPI{Specific KPI Verify}
+    KPI -- "Match Search" --> Mgmt{Management Audit}
+    
+    Mgmt -- "Over-Promised" --> Risk[⚠️ Mgmt Risk]
+    Mgmt -- "Reliable/Sandbag" --> Moat{Moat Analysis}
+    
+    Moat -- "Widening" --> Insider{Insider Activity}
+    Moat -- "Eroding" --> Risk
+    
+    Insider -- "Panic Selling" --> Risk
+    Insider -- "Normal/Buying" --> Pass[✅ Intelligence Clear]
+```
+
+- **KPI 验证**：针对性验证特异指标 (如 CRWD 的 ARR, DUOL 的 DAU)
+- **管理层诚信**：历史指引是否靠谱？是否存在"画大饼"行为？
+- **护城河分析**：竞争优势是在扩大还是缩小？
+- **内幕交易**：区分常规减持与恐慌性抛售
+
+---
+
+## Phase 4: 估值与催化剂 (Valuation & Catalysts)
+
+**目标**：确定"此时此刻"是否值得买入，以及未来的增长空间
+
+```mermaid
+graph TD
+    Input[Intelligence Done] --> BlueSky{Blue Sky Analysis}
+    BlueSky --> RND[R&D Effectiveness]
+    BlueSky --> TAM[TAM Expansion]
+    
+    BlueSky --> Catalyst{Catalyst Check}
+    Catalyst -- "Earnings/Events" --> Timing[📅 Timing Check]
+    
+    Catalyst --> Valuation{Macro-Adj Valuation}
+    Valuation -- "PEG < Limit" --> Buy[✅ Valuation Fit]
+    Valuation -- "Overvalued" --> Wait[⏳ Wait for Dip]
+```
+
+- **蓝天分析 (Blue Sky)**：R&D 是否创造了第二增长曲线？TAM 是否在膨胀？
+- **催化剂 (Catalysts)**：未来 3-6 个月是否有引爆股价的事件 (财报、产品发布)？
+- **宏观调整估值**：
+  - **Loose Mode**: 允许 PEG < 2.0
+  - **Neutral Mode**: 允许 PEG < 1.5
+  - **Tight Mode**: 允许 PEG < 1.2 (杀估值环境)
+
+---
+
 ## Phase 5: 量价物理学 (Physics VPA)
 
 **目标**：捕捉机构进场的瞬间
