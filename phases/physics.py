@@ -14,6 +14,7 @@ Phase 5: The Physics of VPA (量价物理学) - V3.5 Singularity
 import pandas as pd
 import numpy as np
 from typing import List, Dict, Optional
+from datetime import datetime, timedelta
 from tools.fmp import FMPClient
 from core.data_models import PhysicsData
 import config
@@ -30,8 +31,12 @@ class Physics:
         print(f"  [Phase 5] Physics VPA Analysis for {ticker} (V3.5)...")
         
         # 1. Fetch Raw Data (OHLCV)
-        # Need enough data for SMA20 + some buffer
-        raw_data = self.fmp.get_historical_price_daily(ticker, days=60)
+        # Need enough data for SMA20 + some buffer (e.g. 60 days to cover weekends/holidays and give ~40 trading days)
+        # Calculate dates
+        end_date = datetime.now().strftime("%Y-%m-%d")
+        start_date = (datetime.now() - timedelta(days=90)).strftime("%Y-%m-%d")
+        
+        raw_data = self.fmp.get_historical_price_daily(ticker, from_date=start_date, to_date=end_date)
         
         if not raw_data or len(raw_data) < 25:
             print("      [Warning] Insufficient historical data for Physics analysis.")

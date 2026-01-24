@@ -15,6 +15,7 @@ Mahaney Growth Protocol (MGP) V3.5 - The Singularity Edition
 
 import argparse
 import json
+import os
 from datetime import datetime
 
 from phases.gatekeeper import Gatekeeper
@@ -166,14 +167,42 @@ def main():
     parser = argparse.ArgumentParser(description="MGP V3.5 Singularity Edition")
     parser.add_argument("--tickers", type=str, default="DUOL", help="Comma-separated tickers")
     parser.add_argument("--force", action="store_true", help="Force deep dive")
+    parser.add_argument("--scan_mid_cap", default=True,  action="store_true", help="Scan for Mid-Cap (10B-50B) stocks using FMP Screener")
+    parser.add_argument("--limit", type=int, default=50, help="Limit number of stocks to analyze from screener")
     args = parser.parse_args()
-    
-    tickers = [t.strip().upper() for t in args.tickers.split(",")]
     
     fmp = FMPClient()
     llm = LLMClient()
     search = SearchClient()
     yahoo = YahooClient()
+    
+    if args.scan_mid_cap:
+        print(f"\n{'='*60}")
+        print("  Running Mid-Cap Scanner (10B - 50B) - Excluding Funds/ETFs...")
+        print(f"{'='*60}")
+        
+        # 10B to 50B
+        min_cap = 10_000_000_000
+        max_cap = 50_000_000_000
+        
+        screener_results = fmp.get_stock_screener(
+            market_cap_more_than=min_cap,
+            market_cap_lower_than=max_cap,
+            exchange="NASDAQ,NYSE",
+            limit=args.limit * 2 # Fetch a bit more to be safe, though limit param does limit result size
+        )
+        
+        if not screener_results:
+            print("No stocks found matching criteria.")
+            return
+
+        print(f"Found {len(screener_results)} candidates. Processing top {args.limit}...")
+        
+        tickers = [item['symbol'] for item in screener_results][:args.limit]
+        print(f"Targets: {', '.join(tickers)}")
+        
+    else:
+        tickers = [t.strip().upper() for t in args.tickers.split(",")]
     
     results = []
     
@@ -185,7 +214,13 @@ def main():
             # Save Report
             if data.tribunal:
                 report = generate_report_content_v35(data)
-                filename = f"REPORT_V3.5_{ticker}_{datetime.now().strftime('%Y-%m-%d')}.md"
+                
+                # Ensure report directory exists
+                report_dir = "report"
+                if not os.path.exists(report_dir):
+                    os.makedirs(report_dir)
+                    
+                filename = f"{report_dir}/REPORT_V3.5_{ticker}_{datetime.now().strftime('%Y-%m-%d')}.md"
                 with open(filename, "w", encoding="utf-8") as f:
                     f.write(report)
                 print(f"Saved report to {filename}")

@@ -10,7 +10,7 @@ class FMPClient:
         self.base_url = "https://financialmodelingprep.com/stable"
 
 
-    def _get(self, endpoint: str, params: Optional[Dict] = None, use_v3: bool = False) -> Any:
+    def _get(self, endpoint: str, params: Optional[Dict] = None) -> Any:
         if not self.api_key:
             raise ValueError("FMP_API_KEY is not set")
 
@@ -104,21 +104,23 @@ class FMPClient:
             return data[0]
         return None
 
-    def get_historical_price_daily(self, ticker: str, days: int = 365) -> List[Dict]:
+    def get_historical_price_daily(self, ticker: str, from_date: str, to_date: str) -> List[Dict]:
         """
         V3.5: Get raw OHLCV for Physics/VPA calculation.
-        Using v3 endpoint for historical-price-full
+        Updated to use stable endpoint with date range.
+        Endpoint: https://financialmodelingprep.com/stable/historical-price-eod/full?symbol=AAPL&from=...&to=...
         """
-        # Endpoint: /api/v3/historical-price-full/AAPL
-        # This usually returns 5 years on free tier, or recently limited.
-        # But 'historical-price-full' is the standard one.
+        params = {
+            'symbol': ticker,
+            'from': from_date,
+            'to': to_date
+        }
+        # 注意：endpoint 不需要末尾的 /
+        data = self._get("historical-price-eod/full", params=params)
         
-        # We need roughly 1 year for good SMA/Volume analysis context
-        # Params 'from' and 'to' can be used, or 'timeseries' count
-        
-        data = self._get(f"historical-price-full/{ticker}", use_v3=True)
-        if data and 'historical' in data:
-            return data['historical'][:days] # Return last N days
+        # API 返回格式通常是列表，直接返回即可
+        if isinstance(data, list):
+            return data
         return []
 
     def get_vix(self) -> Optional[float]:
@@ -145,6 +147,27 @@ class FMPClient:
             params['to'] = to_date
         return self._get("news/stock", params=params) or []
 
+    def get_stock_screener(self, market_cap_more_than: Optional[int] = None, market_cap_lower_than: Optional[int] = None, sector: Optional[str] = None, exchange: Optional[str] = None, limit: int = 100) -> List[Dict]:
+        """
+        股票筛选器
+        """
+        params = {
+            'limit': limit,
+            'isEtf': 'false',
+            'isFund': 'false',
+            'isActivelyTrading': 'true'
+        }
+        if market_cap_more_than is not None:
+            params['marketCapMoreThan'] = market_cap_more_than
+        if market_cap_lower_than is not None:
+            params['marketCapLowerThan'] = market_cap_lower_than
+        if sector:
+            params['sector'] = sector
+        if exchange:
+            params['exchange'] = exchange
+            
+        return self._get("company-screener", params=params ) or []
+
     def get_forex_news(self, symbol: str = "EURUSD", limit: int = 10) -> List[Dict]:
         """
         获取外汇新闻
@@ -157,4 +180,5 @@ class FMPClient:
 
 if __name__ == "__main__":
     fMPClient = FMPClient()
-    print(fMPClient.get_quote('^TNX'))
+    print(fMPClient.get_historical_price_daily('AXON', from_date='2025-01-01', to_date='2025-01-20'))
+
