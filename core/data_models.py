@@ -12,6 +12,13 @@ class BusinessModel(str, Enum):
     OTHER = "Other"
 
 
+class SearchReference(BaseModel):
+    title: str
+    url: str
+    snippet: Optional[str] = None
+
+
+
 class Decision(str, Enum):
     # V3.5 New Decisions
     FIRE = "FIRE"  # All gates passed (Ignition)
@@ -40,6 +47,23 @@ class Confidence(str, Enum):
     HIGH = "High"
     MEDIUM = "Medium"
     LOW = "Low"
+
+
+class TierLevel(str, Enum):
+    """V3.5: Moat tier for Fortress Test"""
+    TIER_1 = "Tier 1"  # King Maker + Core Metrics Pass
+    TIER_2 = "Tier 2"  # Only Core Metrics Pass
+    TIER_3 = "Tier 3"  # Weak / No clear moat
+
+
+class StrategicDefinition(str, Enum):
+    """V3.5 Phase 6: Executive Matrix Output"""
+    DIAMOND_SETUP = "💎 Diamond Setup"  # Strong Catalyst + Low Valuation
+    MOMENTUM_RIDE = "🚀 Momentum Ride"  # Strong Catalyst + High Valuation
+    FORTRESS_ACCUMULATION = "🏰 Fortress Accumulation"  # No Catalyst + Low Val + Tier 1
+    DEAD_MONEY = "⚰️ Dead Money"  # No Catalyst + Low Val + Tier 2/3
+    CORRECTION_WATCH = "⏸️ Correction Watch"  # No Catalyst + High Val + Tier 1
+    SHORT_TARGET = "💣 Short Target"  # No Catalyst + High Val + Tier 2/3
 
 
 class GatekeeperData(BaseModel):
@@ -114,21 +138,54 @@ class BlueSkyData(BaseModel):
 
 
 class CatalystData(BaseModel):
+    """V3.5 Phase 5: Catalysts & Waves"""
+    # Primary: Thematic Waves (Macro Need)
+    thematic_waves: Optional[str] = None  # e.g., "Labor Shortage -> AI Demand"
+    wave_strength: Optional[str] = None  # "High", "Medium", "Low"
+    
+    # Secondary: Hard Events
     upcoming_events: List[str] = Field(default_factory=list)
-    catalyst_analysis: Optional[str] = None # Detailed narrative
+    catalyst_analysis: Optional[str] = None
+    
+    # Legacy
     variant_perception: Optional[str] = None
-    coattail_effect: Optional[str] = None # V3.5
+    coattail_effect: Optional[str] = None
 
 
 class PhysicsData(BaseModel):
-    """V3.5 New: Quant/VPA Data"""
+    """V3.5 Phase 7: Physics of VPA"""
     sma_20: Optional[float] = None
     current_price: Optional[float] = None
-    relative_volume: Optional[float] = None # RVol
-    is_accumulation: bool = False
-    is_ignition: bool = False
-    is_broken_trend: bool = False # Price < SMA20 for 3 days
+    relative_volume: Optional[float] = None  # RVol = Vol / Avg_Vol_20
+    daily_range: Optional[float] = None  # (High - Low) / Close
+    close_strength: Optional[float] = None  # (Close - Low) / (High - Low)
+    days_below_sma20: int = 0
+    
+    is_accumulation: bool = False  # Range < 2% + RVol > 1.5
+    is_ignition: bool = False  # Price > SMA20 + RVol > 2.0 + Strong Close
+    is_broken_trend: bool = False  # Close < SMA20 for 3+ days
     details: Optional[str] = None
+
+
+class StrategicPricingData(BaseModel):
+    """V3.5 Phase 6: Strategic Pricing Output"""
+    # Step 1: Valuation Scrub
+    adjusted_pe: Optional[float] = None
+    adjustment_reason: Optional[str] = None  # "Sandbagger Discount" or "Over-Promiser Premium"
+    
+    # Step 2: Fortress Test
+    tier_level: Optional[TierLevel] = None
+    tier_rationale: Optional[str] = None
+    
+    # Step 3: Blue Sky Re-Rating
+    peg_limit: float = 2.0  # Default, can be raised to 2.5 if Blue Sky triggers
+    blue_sky_triggered: bool = False
+    
+    # Step 4: Executive Matrix
+    catalyst_strength: Optional[str] = None  # "High" or "Low/None"
+    valuation_status: Optional[str] = None  # "Green" or "Red"
+    strategic_definition: Optional[StrategicDefinition] = None
+    action_instruction: Optional[str] = None
 
 
 class IntelligenceData(BaseModel):
@@ -147,6 +204,7 @@ class TribunalDecision(BaseModel):
     decision: Decision
     confidence: Confidence
     rationale: str
+    checklist_results: Dict[str, bool] = Field(default_factory=dict)  # V3.5 New
     growth_thesis_intact: bool
     valuation_fit: bool
     is_true_discount: bool
@@ -160,13 +218,17 @@ class CompanyData(BaseModel):
 
     # Phases
     gatekeeper: Optional[GatekeeperData] = None
-    deep_audit: Optional[DeepAuditData] = None # Renamed from iron_gate
+    deep_audit: Optional[DeepAuditData] = None  # Renamed from iron_gate
     shadow_audit: Optional[ShadowAuditData] = None
     identifier: Optional[IdentifierData] = None
     polygraph: Optional[PolygraphData] = None
     intelligence: Optional[IntelligenceData] = None
-    physics: Optional[PhysicsData] = None # V3.5 New
+    strategic_pricing: Optional[StrategicPricingData] = None  # V3.5 Phase 6
+    physics: Optional[PhysicsData] = None  # V3.5 Phase 7
     tribunal: Optional[TribunalDecision] = None
+    
+    references: List[SearchReference] = Field(default_factory=list)  # V3.5 New
+
 
     error: Optional[str] = None
     

@@ -1,14 +1,15 @@
 """
-Phase 5: The Physics of VPA (量价物理学) - V3.5 Singularity
+Phase 7: The Physics of VPA (量价物理学) - V3.5 Blue Sky Edition
 ===========================================================
 废弃滞后指标，捕捉机构进场的瞬间。
 基于 FMP 原始 OHLCV 数据进行本地计算。
 
-核心公式:
-1. SMA20 (生命线)
-2. RVol (相对成交量) = Vol / Avg_Vol_20
-3. Ignition (点火) = Price > SMA20 + RVol > 2.0 + Strong Close
-4. Accumulation (吸筹) = Range < 2% + RVol > 1.5
+均线铁律: SMA20 (20日线) 是生命线。线下不买，线上不卖。
+
+核心形态:
+1. Accumulation (吸筹) - 底部横盘，振幅极小，RVol > 1.5
+2. Ignition (点火) - 放量突破 SMA20，RVol > 2.0，收盘价在最高点
+3. Broken Trend (破位) - 收盘价跌破 SMA20 且 3 日内无法收回
 """
 
 import pandas as pd
@@ -28,7 +29,7 @@ class Physics:
         self.fmp = fmp_client
 
     def analyze(self, ticker: str) -> PhysicsData:
-        print(f"  [Phase 5] Physics VPA Analysis for {ticker} (V3.5)...")
+        print(f"  [Phase 7] Physics VPA Analysis for {ticker} (V3.5 Blue Sky)...")
         
         # 1. Fetch Raw Data (OHLCV)
         # Need enough data for SMA20 + some buffer (e.g. 60 days to cover weekends/holidays and give ~40 trading days)
@@ -77,6 +78,8 @@ class Physics:
         data.current_price = latest['close']
         data.sma_20 = latest['sma_20']
         data.relative_volume = latest['rvol']
+        data.daily_range = latest['range_pct']
+        data.close_strength = latest['close_loc']
         
         print(f"      Price: ${latest['close']:.2f} | SMA20: ${latest['sma_20']:.2f}")
         print(f"      RVol: {latest['rvol']:.1f}x (Vol: {latest['volume']/1e6:.1f}M)")
@@ -111,10 +114,11 @@ class Physics:
         # Get last 3 rows
         last_3 = df.tail(3)
         below_sma_count = sum(row['close'] < row['sma_20'] for _, row in last_3.iterrows())
-        if below_sma_count == 3:
+        data.days_below_sma20 = below_sma_count
+        if below_sma_count >= 3:
             data.is_broken_trend = True
-            print("      ⚠️ BROKEN TREND: Close < SMA20 for 3 days")
+            print("      ⚠️ BROKEN TREND: Close < SMA20 for 3+ days")
             
-        data.details = f"RVol {latest['rvol']:.1f}x"
+        data.details = f"RVol {latest['rvol']:.1f}x | Range {latest['range_pct']*100:.1f}% | Close Strength {latest['close_loc']:.1%}"
         
         return data

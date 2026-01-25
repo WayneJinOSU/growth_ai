@@ -12,7 +12,7 @@ Phase 2: The Shadow Audit (影子验证) - V3.5 Singularity
 from tools.search import SearchClient
 from tools.fmp import FMPClient
 from tools.llm import LLMClient
-from core.data_models import ShadowAuditData, BusinessModel
+from core.data_models import ShadowAuditData, BusinessModel, SearchReference
 
 class ShadowAudit:
     """
@@ -24,10 +24,17 @@ class ShadowAudit:
         self.fmp = fmp_client
         self.llm = llm_client
 
-    def audit(self, ticker: str, company_name: str, business_model: BusinessModel) -> ShadowAuditData:
+    def audit(self, ticker: str, company_name: str, business_model: BusinessModel, references: list = None) -> ShadowAuditData:
         print(f"  [Phase 2] Shadow Audit for {ticker} (V3.5)...")
         
         data = ShadowAuditData()
+        if references is None:
+            references = []
+
+        def _collect_refs(results):
+            for r in results:
+                if r.get('url') and not any(ref.url == r['url'] for ref in references):
+                    references.append(SearchReference(title=r.get('title',''), url=r['url']))
         
         # ========== 1. Fake Tech Detection (LinkedIn Audit) ==========
         # 适用于所有声称是 Tech 的公司
@@ -36,6 +43,7 @@ class ShadowAudit:
         query_hiring = f"{company_name} {ticker} hiring careers AI engineer machine learning data scientist"
         if self.search:
             results = self.search.search(query_hiring, max_results=3)
+            _collect_refs(results)
             if results:
                 content = "\n".join([r.get('content', '')[:500] for r in results])
                 
@@ -91,6 +99,7 @@ class ShadowAudit:
             if self.search:
                 query_client = f"{company_name} {ticker} major customers partners Apple Microsoft Nvidia Amazon Google government contract"
                 results = self.search.search(query_client, max_results=3)
+                _collect_refs(results)
                 
                 if results:
                     content = "\n".join([r.get('content', '') for r in results])
@@ -139,6 +148,7 @@ class ShadowAudit:
             if self.search:
                 query_app = f"{company_name} app store ranking top charts"
                 results = self.search.search(query_app, max_results=1)
+                _collect_refs(results)
                 if results:
                     content = results[0].get('content', '').lower()
                     if "top" in content or "#1" in content or "most downloaded" in content:
@@ -152,6 +162,7 @@ class ShadowAudit:
             # 搜索最近的 Earnings Guidance / Press Releases
             query_guidance = f"{company_name} {ticker} earnings guidance outlook conservative beat raise 2024 2025"
             results = self.search.search(query_guidance, max_results=3)
+            _collect_refs(results)
             
             if results:
                 content = "\n".join([r.get('content', '')[:400] for r in results])

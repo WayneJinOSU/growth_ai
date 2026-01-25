@@ -1,267 +1,182 @@
-# Mahaney Growth Protocol (MGP) V3.5 - The Singularity Edition
+# 🐺 Mahaney Growth Protocol (MGP) V3.5
+### —— The "Blue Sky" Edition (蓝天视界版)
+**中大盘成长股“全维度战略”作战系统**
 
-**—— 中大盘成长股"反脆弱全景套利"系统**
-
-**版本代号**：V3.5 (The Singularity Edition / 奇点终极版)
-**适用范围**：市值 $10 Billion ~ $50 Billion 美金
-
----
-
-## 核心哲学 (Core Philosophy)
-
-- **灵魂 (Soul)**：基本面寻找"变异感知"与"真实背书"
-- **时机 (Timing)**：催化剂确认"势能"，物理学确认"动能"
-- **铁律**：数据可以造假，但巨头的订单和群众的成瘾性无法造假
+> **版本状态**：LIVE (Strategic Integration)
+> **核心进化**：从“寻找增长”进化为“寻找**被低估的爆发力**”。
+> **核心哲学**：
+> *   **质地 (Quality)**：护城河决定了你能活多久。
+> *   **蓝天 (Blue Sky)**：第二曲线决定了你能飞多高。
+> *   **势能 (Waves)**：全行业刚需决定了你起飞的速度。
 
 ---
 
-## V3.5 流水线 (Pipeline)
+## 🗺️ 核心流水线 (The Pipeline V3.5)
 
 ```mermaid
-graph TD
-    Start[Start Analysis] --> Gatekeeper{Phase 0: Gatekeeper}
-    
-    Gatekeeper -- "Pass" --> DeepAudit{Phase 1: Deep Audit}
-    Gatekeeper -- "Fail (Blacklist/20% Rule)" --> Reject[❌ SKIP]
-    
-    DeepAudit -- "Pass" --> Shadow{Phase 1+: Shadow Audit}
-    DeepAudit -- "Fail (CFO/SBC/Inventory)" --> Reject
-    
-    Shadow --> Intelligence{Phase 2-3: Intelligence}
-    
-    Intelligence --> Physics{Phase 4: Physics VPA}
-    
-    Physics --> Tribunal{Phase 7: Tribunal}
-    
-    Tribunal --> FinalVerdict[📝 Final Report]
+Phase 0 [门槛熔断] → Phase 1 [深度审计] → Phase 2 [影子验证] →Phase 3 [软性情报]  →  Phase 4 [蓝天展望]  → Phase 5 [战略定价] → Phase 6 [势能催化] → Phase 7 [物理点火] → Phase 8 [最终审判]
 ```
 
 ---
 
-## Phase 0: 精密靶场与门槛 (Gatekeeper)
+## 🛑 Phase 0: 门槛熔断 (Gatekeeper)
+**目标**：在浪费时间看财报前，用“排除法”过滤掉 90% 的垃圾。
 
-**目标**：用"排除法"过滤 90% 的杂音
-
-```mermaid
-graph TD
-    Input[Ticker] --> Blacklist{Blacklist Check}
-    Blacklist -- "Fashion/Banks/etc." --> Fail[❌ Fail: Blacklist]
-    Blacklist -- "Pass" --> Macro{Macro Mode Check}
-    Macro -- "VIX > 30" --> Fail
-    Macro -- "Safe" --> Growth{Future Growth > 20%?}
-    Growth -- "No" --> Fail
-    Growth -- "Yes" --> Pass[✅ Pass: Valid Candidate]
-```
-
-- **绝对黑名单 (Kill Zone)**：Fashion, Regional Banks, Commodities, Auto/Airlines
-- **20% 铁律**：未来 3 年预期营收 CAGR > 20% (使用 Yahoo Finance)
-- **宏观压力阀**：US10Y 决定 PEG 容忍度
-- **VIX 熔断**：VIX > 30 时禁止左侧交易
+1.  **🚫 绝对黑名单 (The Kill Zone)**
+    *   **纯时尚/服饰**：护城河极浅，库存滞后。
+    *   **区域银行/资源股**：黑箱资产与宏观赌博。
+    *   **重资产/低毛利**：受工会与高固定成本绑架。
+2.  **⚡️ 20% 铁律 (The Iron Rule)**
+    *   未来 3 年预期营收 **CAGR (年均复合增长率)** 必须 **> 20%**。没有增长，就没有溢价。
+3.  **📉 宏观压力阀**
+    *   **VIX (恐慌指数) > 30** 或 **US10Y (10年期美债)** 垂直拉升 $\rightarrow$ 系统挂起，禁止做多。
 
 ---
 
-## Phase 1: 深度审计 (Deep Audit)
+## 🔍 Phase 1: 深度审计 (Deep Audit)
+**目标**：对不同商业模式进行“核磁共振”级体检，确保现在的身体是健康的。
 
-**目标**：针对不同商业模式进行"核磁共振"级体检
-
-```mermaid
-graph TD
-    Input[Gate Passed] --> Identify[Identify Business Model]
-    Identify --> Metrics{Segment Specific Checks}
-    
-    Metrics -- "SaaS" --> SaaS[Check NDR, RPO]
-    Metrics -- "Hardware" --> Hard[Check Inventory, Book-to-Bill]
-    Metrics -- "Consumption" --> Cons[Check Rule of 40]
-    
-    Metrics --> Universal{Universal Lie Detector}
-    Universal -- "CFO Divergence" --> Fail[❌ Fail: Trap]
-    Universal -- "Insider Selling" --> Fail
-    Universal -- "Clean" --> Pass[✅ Pass: Audit Clear]
-```
-
-### 商业模式分层检查
-
-| 模式 | 关键指标 |
-|------|----------|
-| SaaS/Cyber | NDR > 110%, RPO Growth > Rev Growth |
-| Consumption | Rule of 40 (Rev% + FCF% > 40%), SBC < 25% |
-| Hard Tech | Book-to-Bill > 1.0, **Inventory Death Cross** 检测 |
-| Platform | Take Rate Trap, LTV/CAC > 3 |
-
-### 全局测谎仪 (Universal Lie Detector)
-
-- **CFO 背离**：NI +20% 但 CFO 下降 → TRAP
-- **内部人抛售**：通过 Yahoo Finance 检测
+| 模式组别 | ✅ 核心指标 (Key Metrics) | ☠️ 致命红线 (Kill Signals) |
+| :--- | :--- | :--- |
+| **☁️ SaaS / Cyber**<br>(软件/安全) | **NDR > 110%** (净收入留存率：客户越用越贵)<br>**RPO 增速 > 营收增速** (剩余履约义务：订单蓄水池在扩大) | **SBC > 25%** (股权激励过高，管理层吸血)<br>大客户流失 |
+| **⚙️ 硬科技 / Semi**<br>(硬件/半导体) | **Book-to-Bill > 1.0** (供不应求)<br>库存周转率保持健康 | **库存死亡交叉**：库存↑ + 毛利↓ (产品滞销且降价，绝对死刑) |
+| **🛍️ 平台 / 消费**<br>(电商/品牌) | **Rule of 40** (增长% + 现金流% > 40)<br>**LTV/CAC > 3** (赚回来的钱是获客成本的3倍) | **Take Rate Trap**：变现率↑ 但 **GMV** (交易总额) ↓ (杀鸡取卵) |
 
 ---
 
-## Phase 2: 影子验证 (Shadow Audit)
+## 🕵️ Phase 2: 影子验证 (Shadow Verification)
+**目标**：不看财报，从侧面验证“生意的真实地位”。
 
-**目标**：不看财报，从侧面验证生意的真实地位
-
-```mermaid
-graph TD
-    Input[Audit Passed] --> FakeTech{Fake Tech Check}
-    FakeTech -- "No Tech Hiring" --> Trap[❌ Trap: Fake Tech]
-    FakeTech -- "Hiring AI/Eng" --> PathSelect{Business Model}
-    
-    PathSelect -- "B2B/Hard Tech" --> KingMaker{King Maker Check}
-    KingMaker -- "Found Microsoft/Apple..." --> Bonus[🌟 Strong Moat]
-    
-    PathSelect -- "B2C/App" --> Organic{Organic Growth Check}
-    Organic -- "S&M% Down + Rev Up" --> Sniper[🎯 Sniper Signal]
-    
-    PathSelect --> Sandbag{Sandbagging Check}
-    Sandbag -- "Guidance < Reality" --> Sniper
-```
-
-- **Path A (B2B/Tech)**：检验是否有 **King Makers** (Msft, Aapl, Nvda, Amzn, Goog)
-- **Path B (B2C/App)**：检验 **Organic Growth** (S&M% 下降 + Rev 增长)
-- **Sandbagging Detection**：管理层是否"沙袋" (指引保守但实际强劲) → **Sniper 信号**
+1.  **👑 造王者验证 (King Makers)**：
+    *   前五大客户包含 Tier 1 巨头 (Apple, Microsoft, Nvidia, Amazon, Gov)？
+    *   *逻辑：巨头的尽职调查部门已经替你排过雷了。*
+2.  **🗣️ 群众智慧 (Wisdom of Crowds)**：
+    *   App Store 长期霸榜？
+    *   **有机增长 (Organic Growth)**：销售费用占比 (S&M%) 下降，但用户数持续增长？
+3.  **🧱 扮猪吃虎 (Sandbagging Check)**：
+    *   管理层是否习惯给出保守指引 (Guidance)，然后每季度 **Beat (超预期)**？这是狙击手的标志。
 
 ---
 
-## Phase 3: 软性情报 (Intelligence)
+## 🧠 Phase 3: 软性情报 (Intelligence)
+**目标**：构建生意的定性画像，评估管理层与护城河。
 
-**目标**：构建生意的定性画像，评估管理层与护城河
-
-```mermaid
-graph TD
-    Input[Shadow Passed] --> KPI{Specific KPI Verify}
-    KPI -- "Match Search" --> Mgmt{Management Audit}
-    
-    Mgmt -- "Over-Promised" --> Risk[⚠️ Mgmt Risk]
-    Mgmt -- "Reliable/Sandbag" --> Moat{Moat Analysis}
-    
-    Moat -- "Widening" --> Insider{Insider Activity}
-    Moat -- "Eroding" --> Risk
-    
-    Insider -- "Panic Selling" --> Risk
-    Insider -- "Normal/Buying" --> Pass[✅ Intelligence Clear]
-```
-
-- **KPI 验证**：针对性验证特异指标 (如 CRWD 的 ARR, DUOL 的 DAU)
-- **管理层诚信**：历史指引是否靠谱？是否存在"画大饼"行为？
-- **护城河分析**：竞争优势是在扩大还是缩小？
-- **内幕交易**：区分常规减持与恐慌性抛售
+1.  **KPI 特异性验证**：不只看通用指标，需核对特定行业 **KPI (关键绩效指标)**，如：
+    *   CRWD 的 **ARR (年度经常性收入)** 增量
+    *   DUOL 的 **DAU (日活跃用户数)**
+2.  **管理层诚信度**：
+    *   ❌ **Over-Promised**：历史画饼未兑现 $\rightarrow$ 剔除。
+    *   ✅ **Sandbagger**：习惯性低调（隐藏实力） $\rightarrow$ 加分。
+3.  **护城河动态**：
+    *   竞争优势是在扩大 (Widening) 还是缩小 (Eroding)？
+4.  **内幕交易性质**：
+    *   区分常规薪酬减持（可接受）与 恐慌性清仓（致命）
 
 ---
 
-## Phase 4: 估值与催化剂 (Valuation & Catalysts)
+## 🔭 Phase 4: 蓝天展望 (Blue Sky Analysis)  🆕 
+**目标**：寻找支撑高估值的“第二燃料”。如果一家公司只有现在的业绩，没有未来的梦，它不配享受高 PE。
 
-**目标**：确定"此时此刻"是否值得买入，以及未来的增长空间
+### 1. TAM 爆炸逻辑 (The TAM Explosion)
+*不要只看现在的市场，要看被技术撕开的新边界。*
+*   **判定标准**：公司是否突破了原本定义的行业天花板？且新 TAM (潜在市场规模) 至少是旧 TAM 的 **2倍**。
+    *   *SaaS 案例*：CRWD 从“卖杀毒软件” $\rightarrow$ “云工作负载保护 + 身份验证”。
+    *   *硬件案例*：Axon 从“卖泰瑟枪” $\rightarrow$ “全球公共安全操作系统”。
+    *   *消费案例*：Lululemon 从“瑜伽裤” $\rightarrow$ “全品类男装 + 跑鞋”。
 
-```mermaid
-graph TD
-    Input[Intelligence Done] --> BlueSky{Blue Sky Analysis}
-    BlueSky --> RND[R&D Effectiveness]
-    BlueSky --> TAM[TAM Expansion]
-    
-    BlueSky --> Catalyst{Catalyst Check}
-    Catalyst -- "Earnings/Events" --> Timing[📅 Timing Check]
-    
-    Catalyst --> Valuation{Macro-Adj Valuation}
-    Valuation -- "PEG < Limit" --> Buy[✅ Valuation Fit]
-    Valuation -- "Overvalued" --> Wait[⏳ Wait for Dip]
-```
-
-- **蓝天分析 (Blue Sky)**：R&D 是否创造了第二增长曲线？TAM 是否在膨胀？
-- **催化剂 (Catalysts)**：未来 3-6 个月是否有引爆股价的事件 (财报、产品发布)？
-- **宏观调整估值**：
-  - **Loose Mode**: 允许 PEG < 2.0
-  - **Neutral Mode**: 允许 PEG < 1.5
-  - **Tight Mode**: 允许 PEG < 1.2 (杀估值环境)
+### 2. 第二增长曲线 (The Second Curve)
+*这是避免估值杀跌的安全气囊。*
+*   **识别信号**：主营业务增速平稳，但某项新业务 (New Segment) 增速极快 (>50%) 且占比已达 10%。
+*   **MGP 豁免条款**：拥有强劲第二曲线的公司，允许 **PEG (市盈率相对盈利增长比率)** 上浮至 **2.0 - 2.5**。
 
 ---
 
-## Phase 5: 量价物理学 (Physics VPA)
+## 🌊 Phase 5: 势能与催化 (Catalysts & Waves) 🆕 *[升级]*
+**核心修正：宏观需求 (Macro Need) > 微观事件 (Micro Events)**
 
-**目标**：捕捉机构进场的瞬间
+### 1. 一级催化：全行业势能 (Thematic Waves)
+*不需要看财报就能感知的“不可逆刚需”。*
+*   **劳动力短缺 $\rightarrow$ AI 刚需**：例如警局招不到人 $\rightarrow$ Axon 的 AI 写报告功能 (Draft One) 不是锦上添花，是救命稻草。
+*   **地缘政治 $\rightarrow$ 预算溢出**：国防预算激增，资金从单纯买武器溢出到“态势感知软件”。
 
-```mermaid
-graph TD
-    Input[Intelligence Done] --> VPA{Volume Price Analysis}
-    VPA --> Trend{Trend Check}
-    
-    Trend -- "Price < SMA20 (3 days)" --> Broken[📉 Broken Trend: EJECT]
-    Trend -- "Range < 2% + High RVol" --> Accum[📦 Accumulation]
-    Trend -- "Price > SMA20 + RVol > 2" --> Ignite[🚀 Ignition: BUY]
-    Trend -- "Normal" --> Wait[👀 Wait]
-```
-
-- **SMA20**：20日均线 (生命线)
-- **RVol**：相对成交量 = Vol / Avg_Vol_20
-- **Accumulation (吸筹)**：振幅 < 2% + RVol > 1.5
-- **Ignition (点火)**：Price > SMA20 + RVol > 2.0 + Strong Close
-- **Broken Trend (止损)**：收盘 < SMA20 连续 3 日
+### 2. 二级催化：硬事件 (Hard Events)
+*   **财报日 (Earnings Date)**：验证变现率 (Take Rate) 的关键节点。
+*   **产品换代 (Product Cycle)**：如 Taser 10 到 Taser 11 的自然更新潮。
 
 ---
 
-## Phase 6: 最终审判 (Tribunal)
+## ✅ Phase 6: 战略综述与定价 (Final Polished)
+**—— The "Holographic" Judgment (全息审判 / 最终修正版) ——**
 
-**决策矩阵 (规则化)：**
+**目标**：将所有定性情报转化为定量的操作指令。**此处是逻辑的终点，行动的起点。**
 
-| 决策 | 条件 |
-|------|------|
-| 🔥 FIRE | All Gates Pass + Ignition + Catalyst |
-| 🏰 COMPOUNDER | Strong Fundamentals + King Maker |
-| ⚔️ SNIPER | Audit Pass + (Organic Growth OR Sandbagging) |
-| 📈 ACCUMULATE | Gates Pass + Accumulation (no Ignition) |
-| 👀 WATCH | Default |
-| 💣 TRAP | Fake Tech / Broken Trend / CFO Divergence |
+### 🛠️ 步骤 1：估值清洗 (The Valuation Scrub)
+*调用 [Phase 3: 管理层情报]*
+*   **Sandbagger (扮猪吃虎)**：当前 PE/PS **打 8 折** 计算。（视为分母 E 被隐藏）。
+*   **Over-Promiser (画饼)**：当前 PE/PS **上浮 20%** 计算（视为风险溢价），或直接剔除。
+
+### 🧱 步骤 2：底仓资格认证 (The Fortress Test)
+*调用 [Phase 1: 核心指标] & [Phase 2: 影子验证]*
+**定义 Tier 1 (必须同时满足以下两条)：**
+1.  **Phase 1 达标**：在该行业**特定的核心指标**上表现完美（如 SaaS 看 Rule of 40，硬件看供需比）。
+2.  **Phase 2 达标**：拥有“造王者”客户 (King Makers)。
+*   **结论**：Tier 1 是唯一允许在“冷态”（无催化）下买入的资产。
+
+### 🚀 步骤 3：蓝天重定价 (Blue Sky Re-Rating)
+*调用 [Phase 4: 增长曲线]*
+*   **判定**：若存在强劲第二曲线 (增速 > 50%)。
+*   **执行**：**修改“昂贵”的定义**。
+    *   通常 PEG > 2.0 视为“溢价 (Red)”。
+    *   **触发蓝天后**：PEG < 2.5 均视为 **“合理 (Green)”** 并输入下方的矩阵。
+
+### ♟️ 步骤 4：最终决策矩阵 (The Executive Matrix)
+*输入以上 3 步的修正数据，输出唯一指令*
+
+| 催化剂状态 (Phase 5) | 真实估值状态 (经 Step 1 & 3 修正) | 护城河等级 (Step 2) | **战略定义 & 操作指令** |
+| :--- | :--- | :--- | :--- |
+| **🔥 强 (High)** | **🟢 低 / 合理** | Any | **💎 Diamond Setup**<br>完美击球点。**重仓出击 (Aggressive Buy)**。 |
+| **🔥 强 (High)** | **🔴 高 / 溢价** | Any | **🚀 Momentum Ride**<br>势能压倒估值。**右侧追涨**。<br>*(注：需严格利用 Phase 7 寻找点火点)* |
+| **🧊 弱 / 无** | **🟢 低 / 合理** | **👑 Tier 1** | **🏰 Fortress Accumulation**<br>护城河极深。**左侧建仓 (Scale In)**。<br>*(注：这是做时间的朋友)* |
+| **🧊 弱 / 无** | **🟢 低 / 合理** | **Tier 2 / 3** | **⚰️ Dead Money (死钱)**<br>便宜但平庸。**观望 (Watch)**，资金是有时间成本的。 |
+| **🧊 弱 / 无** | **🔴 高 / 溢价** | **👑 Tier 1** | **⏸️ Correction Watch (等待回调)**<br>虽然贵且无动力，但**严禁做空** Tier 1。<br>等待均值回归后再买。 |
+| **🧊 弱 / 无** | **🔴 高 / 溢价** | **Tier 2 / 3** | **💣 Short Target (做空)**<br>无护城河、无催化、无性价比。<br>**清仓或做空**。 |
 
 ---
 
-## 环境要求
+## 🚀 Phase 7: 量价物理学 (The Physics of VPA)
+**目标**：废弃滞后指标，捕捉机构进场的瞬间。**VPA = Volume Price Analysis (量价分析)**。
 
-```bash
-# API Keys (.env)
-FMP_API_KEY=your_fmp_key       # FMP Starter 即可
-OPENAI_API_KEY=your_openai_key
-TAVILY_API_KEY=your_tavily_key
-```
+*   **均线铁律**：**SMA20 (20日线)** 是生命线。线下不买，线上不卖。
 
-## 安装
+| 形态 | 特征 | 含义 | 操作 |
+| :--- | :--- | :--- | :--- |
+| **📦 Accumulation (吸筹)** | 底部横盘，振幅极小，但**相对成交量 (RVol)** > 1.5 | 暗流涌动 | **ACCUMULATE (建仓)** |
+| **🚀 Ignition (点火)** | 放量突破 SMA20，**RVol > 2.0**，收盘价在最高点 | 势能转化为动能 | **FIRE (核心买点)** |
+| **📉 Broken Trend (破位)** | 收盘价跌破 SMA20 且 3 日内无法收回 | 趋势坏死 | **EJECT (物理止损)** |
 
-```bash
-pip install -r requirements.txt
-```
 
-## 使用方法
+---
 
-```bash
-# 分析单只股票
-python main.py --tickers DUOL
+## 🛡️ Phase 8: 最终审判 (The Tribunal)
+**—— 下单前的最后 60 秒核对清单 ——**
 
-# 分析多只股票
-python main.py --tickers DDOG,CRWD,UBER
+**[ ] 风险熔断**：VIX < 30？美债收益率稳定？
+**[ ] 审计通过**：核心指标健康？没有内幕大额抛售？
+**[ ] 蓝天确认**：有第二增长曲线或 TAM 扩张的故事？
+**[ ] 战略匹配**：是 Tier 1/2 护城河？估值有没有透支未来？
+**[ ] 势能共振**：是否处于全行业不可逆的爆发潮中 (Thematic Wave)？
+**[ ] 物理点火**：Ignition 信号 (放量突破) 出现了吗？
 
-# 强制深度分析（忽略 Gate 失败）
-python main.py --tickers META --force
-```
+👉 **全部 YES** $\Rightarrow$ **🔥 FIRE (全仓开火)**
+👉 **缺物理点火** $\Rightarrow$ **👀 WATCH (加入自选，设置警报)**
+👉 **审计/战略 FAIL** $\Rightarrow$ **🗑️ TRASH (永远剔除)**
 
-## 项目结构
+---
 
-```
-/
-├── config.py             # V3.5 策略参数
-├── main.py               # 流水线编排
-├── core/
-│   └── data_models.py    # 数据模型
-├── tools/
-│   ├── fmp.py            # FMP API (财务 + OHLCV)
-│   ├── yahoo.py          # Yahoo Finance (Estimates + Insider)
-│   ├── search.py         # Tavily 搜索
-│   └── llm.py            # AI 分析
-└── phases/
-    ├── gatekeeper.py     # Phase 0: 黑名单 + 20% 铁律
-    ├── deep_audit.py     # Phase 1: 深度审计
-    ├── shadow_audit.py   # Phase 2: 影子验证 (King Maker/Sandbagging)
-    ├── intelligence.py   # Phase 3 & 4: 情报 + 估值
-    ├── physics.py        # Phase 5: 量价物理学
-    └── tribunal.py       # Phase 6: 最终审判
-```
-
-## 免责声明
-
-本工具仅用于辅助研究和学习，**不构成任何投资建议**。投资有风险，入市需谨慎。
+### 📚 附录：核心术语速查
+*   **CAGR**：年均复合增长率 (Compound Annual Growth Rate)
+*   **NDR**：净收入留存率 (Net Dollar Retention)
+*   **RPO**：剩余履约义务 (Remaining Performance Obligations - 未来的收入)
+*   **PEG**：市盈率相对盈利增长比率 (PE / Growth Rate)
+*   **Sandbagging**：隐藏实力，故意压低预期的管理策略。
+*   **Ignition**：点火，指伴随巨大成交量的突破。

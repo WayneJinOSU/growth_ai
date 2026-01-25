@@ -1,14 +1,26 @@
 """
-Phase 6: The Final Tribunal (最终审判) - V3.5 Singularity
+Phase 8: The Final Tribunal (最终审判) - V3.5 Blue Sky Edition
 =========================================================
 下单前的最后 60 秒核对清单。
 
-设计原则:
-- 决策逻辑: 纯 Python 规则 (基于前面阶段的 Gates 状态)
-- LLM 职责: 只生成 rationale (Executive Summary)
+核对项目:
+[ ] 风险熔断: VIX < 30? 美债收益率稳定?
+[ ] 审计通过: 核心指标健康? 没有内幕大额抛售?
+[ ] 蓝天确认: 有第二增长曲线或 TAM 扩张的故事?
+[ ] 战略匹配: 是 Tier 1/2 护城河? 估值有没有透支未来?
+[ ] 势能共振: 是否处于全行业不可逆的爆发潮中?
+[ ] 物理点火: Ignition 信号出现了吗?
+
+结果:
+- 全部 YES => FIRE (全仓开火)
+- 缺物理点火 => WATCH (加入自选，设置警报)
+- 审计/战略 FAIL => TRASH (永远剔除)
 """
 
-from core.data_models import CompanyData, Decision, TribunalDecision, Confidence
+from core.data_models import (
+    CompanyData, Decision, TribunalDecision, Confidence,
+    StrategicPricingData, StrategicDefinition, TierLevel
+)
 from tools.llm import LLMClient
 
 
@@ -20,67 +32,85 @@ class Tribunal:
     def __init__(self, llm_client: LLMClient):
         self.llm = llm_client
 
-    def judge(self, data: CompanyData) -> TribunalDecision:
-        print(f"  [Phase 6] The Final Tribunal for {data.ticker} (V3.5)...")
+    def judge(self, data: CompanyData, strategic_pricing: StrategicPricingData = None) -> TribunalDecision:
+        print(f"  [Phase 8] The Final Tribunal for {data.ticker} (V3.5 Blue Sky)...")
         
-        # ========== 1. 提取 Gates 状态 (已在前面阶段计算完成) ==========
-        gate_gatekeeper = data.gatekeeper and data.gatekeeper.passed
-        gate_audit = data.deep_audit and data.deep_audit.passed
-        gate_shadow = not (data.shadow_audit and data.shadow_audit.is_fake_tech)
+        # ========== 60-Second Checklist ==========
+        checklist = {}
         
-        has_king_maker = data.shadow_audit and data.shadow_audit.has_king_maker_clients
-        organic_growth = data.shadow_audit and data.shadow_audit.organic_growth_confirmed
-        is_sandbagging = data.shadow_audit and data.shadow_audit.sandbagging_detected
+        # 1. Risk Fuse (风险熔断)
+        checklist['risk_fuse'] = self._check_risk_fuse(data)
         
-        is_ignition = data.physics and data.physics.is_ignition
-        is_accumulation = data.physics and data.physics.is_accumulation
-        is_broken_trend = data.physics and data.physics.is_broken_trend
+        # 2. Audit Passed (审计通过)
+        checklist['audit_passed'] = self._check_audit_passed(data)
         
-        has_catalyst = (data.intelligence and data.intelligence.catalysts and 
-                        len(data.intelligence.catalysts.upcoming_events) > 0)
-
-        # ========== 2. 规则化决策 (Decision Matrix) ==========
+        # 3. Blue Sky Confirmed (蓝天确认)
+        checklist['blue_sky'] = self._check_blue_sky(data, strategic_pricing)
+        
+        # 4. Strategic Match (战略匹配)
+        checklist['strategic_match'] = self._check_strategic_match(data, strategic_pricing)
+        
+        # 5. Wave Resonance (势能共振)
+        checklist['wave_resonance'] = self._check_wave_resonance(data)
+        
+        # 6. Physical Ignition (物理点火)
+        checklist['physical_ignition'] = data.physics and data.physics.is_ignition
+                # ========== Decision Logic ==========
         decision = Decision.WATCH
         confidence = Confidence.MEDIUM
         
-        # TRAP: 硬性否决条件
-        if not gate_shadow:  # Fake Tech
+        # Count passes
+        passes = sum(1 for v in checklist.values() if v)
+        total = len(checklist)
+        
+        print(f"    Checklist: {passes}/{total} passed")
+        for k, v in checklist.items():
+            status = "✅" if v else "❌"
+            print(f"      [{status}] {k}")
+        
+        # TRASH: Audit or Strategic fails hard
+        if not checklist['audit_passed']:
             decision = Decision.TRAP
             confidence = Confidence.HIGH
-        elif is_broken_trend:  # Physics 破位
+        elif data.physics and data.physics.is_broken_trend:
             decision = Decision.TRAP
             confidence = Confidence.HIGH
-        elif data.deep_audit and "CFO Divergence" in (data.deep_audit.fail_reason or ""):
-            decision = Decision.TRAP
-            confidence = Confidence.HIGH
-            
-        # FIRE: 全部通过 + Ignition + 催化剂
-        elif gate_gatekeeper and gate_audit and gate_shadow and is_ignition and has_catalyst:
+        # FIRE: All checks pass
+        elif all(checklist.values()):
             decision = Decision.FIRE
             confidence = Confidence.HIGH
-            
-        # STRATEGIC COMPOUNDER: 基本面强 + King Maker + 长期持有
-        elif gate_gatekeeper and gate_audit and has_king_maker and not is_broken_trend:
-            decision = Decision.STRATEGIC_COMPOUNDER
-            confidence = Confidence.MEDIUM
-            
-        # TACTICAL SNIPER: 审计通过 + (Sandbagging OR Organic Growth)
-        elif gate_audit and (is_sandbagging or organic_growth):
-            decision = Decision.TACTICAL_SNIPER
-            confidence = Confidence.HIGH if is_sandbagging else Confidence.MEDIUM
-            
-        # ACCUMULATE: 基本面好 + Accumulation (吸筹) 但无 Ignition
-        elif gate_gatekeeper and gate_audit and is_accumulation and not is_ignition:
+        # Integrate with Strategic Pricing if available
+        elif strategic_pricing and strategic_pricing.strategic_definition:
+            sd = strategic_pricing.strategic_definition
+            if sd == StrategicDefinition.DIAMOND_SETUP:
+                decision = Decision.CONVICTION_BUY
+                confidence = Confidence.HIGH
+            elif sd == StrategicDefinition.MOMENTUM_RIDE:
+                decision = Decision.SPECULATIVE_BUY
+                confidence = Confidence.MEDIUM
+            elif sd == StrategicDefinition.FORTRESS_ACCUMULATION:
+                decision = Decision.ACCUMULATE
+                confidence = Confidence.MEDIUM
+            elif sd == StrategicDefinition.DEAD_MONEY:
+                decision = Decision.WATCH
+                confidence = Confidence.LOW
+            elif sd == StrategicDefinition.CORRECTION_WATCH:
+                decision = Decision.WATCH
+                confidence = Confidence.MEDIUM
+            elif sd == StrategicDefinition.SHORT_TARGET:
+                decision = Decision.TRAP
+                confidence = Confidence.HIGH
+        # Legacy: accumulation without ignition
+        elif checklist['audit_passed'] and data.physics and data.physics.is_accumulation:
             decision = Decision.ACCUMULATE
             confidence = Confidence.MEDIUM
-            
-        # WATCH: 其他情况
+        # Default
         else:
             decision = Decision.WATCH
             confidence = Confidence.LOW
 
-        # ========== 3. LLM 生成 Rationale (轻量) ==========
-        rationale = self._generate_rationale(data, decision)
+        # ========== LLM Rationale ==========
+        rationale = self._generate_rationale(data, decision, checklist, strategic_pricing)
 
         print(f"    Decision: {decision.value} | Confidence: {confidence.value}")
         
@@ -88,26 +118,77 @@ class Tribunal:
             decision=decision,
             confidence=confidence,
             rationale=rationale,
-            growth_thesis_intact=gate_gatekeeper and gate_audit,
-            valuation_fit=gate_audit,
-            is_true_discount=not is_broken_trend
+            checklist_results=checklist,
+            growth_thesis_intact=checklist['audit_passed'] and checklist['blue_sky'],
+            valuation_fit=checklist['strategic_match'],
+            is_true_discount=not (data.physics and data.physics.is_broken_trend)
         )
 
-    def _generate_rationale(self, data: CompanyData, decision: Decision) -> str:
+    def _check_risk_fuse(self, data: CompanyData) -> bool:
+        """Check VIX < 30 and macro stability"""
+        if data.gatekeeper:
+            vix_ok = data.gatekeeper.vix_value is None or data.gatekeeper.vix_value < 30
+            return vix_ok and data.gatekeeper.passed
+        return True
+
+    def _check_audit_passed(self, data: CompanyData) -> bool:
+        """Check Phase 1 Deep Audit and no insider panic selling"""
+        audit_ok = data.deep_audit and data.deep_audit.passed
+        no_insider_selling = not (data.deep_audit and data.deep_audit.insider_selling_risk)
+        return audit_ok and no_insider_selling
+
+    def _check_blue_sky(self, data: CompanyData, pricing: StrategicPricingData) -> bool:
+        """Check for second growth curve or TAM expansion"""
+        if pricing and pricing.blue_sky_triggered:
+            return True
+        if data.intelligence and data.intelligence.blue_sky:
+            bs = data.intelligence.blue_sky
+            return bool(bs.rnd_effectiveness or bs.tam_expansion)
+        return False
+
+    def _check_strategic_match(self, data: CompanyData, pricing: StrategicPricingData) -> bool:
+        """Check Tier 1/2 moat and valuation not overextended"""
+        if pricing:
+            tier_ok = pricing.tier_level in [TierLevel.TIER_1, TierLevel.TIER_2]
+            val_ok = pricing.valuation_status == "Green"
+            return tier_ok or val_ok
+        # Fallback: shadow audit king makers
+        return data.shadow_audit and data.shadow_audit.has_king_maker_clients
+
+    def _check_wave_resonance(self, data: CompanyData) -> bool:
+        """Check if riding a thematic wave"""
+        if data.intelligence and data.intelligence.catalysts:
+            cat = data.intelligence.catalysts
+            return cat.wave_strength in ["High", "Medium"]
+        return False
+
+    def _generate_rationale(self, data: CompanyData, decision: Decision, 
+                            checklist: dict = None, pricing: StrategicPricingData = None) -> str:
         """
-        用 LLM 生成简洁的 Executive Summary (只生成文字，不做决策)
+        Generate Executive Summary using LLM
         """
-        # 构建精简的上下文
+        # Build context
+        checklist_str = ""
+        if checklist:
+            checklist_str = "\n".join([f"- {k}: {'PASS' if v else 'FAIL'}" for k, v in checklist.items()])
+        
+        strategic_str = ""
+        if pricing and pricing.strategic_definition:
+            strategic_str = f"Strategic Definition: {pricing.strategic_definition.value}\nAction: {pricing.action_instruction}"
+
         context = f"""
         Ticker: {data.ticker}
         Decision: {decision.value}
+        
+        V3.5 Checklist:
+        {checklist_str or "N/A"}
+        
+        {strategic_str}
         
         Key Facts:
         - Gatekeeper: {'Passed' if data.gatekeeper and data.gatekeeper.passed else 'Failed'}
         - Deep Audit: {'Passed' if data.deep_audit and data.deep_audit.passed else 'Failed'}
         - King Makers: {'Yes' if data.shadow_audit and data.shadow_audit.has_king_maker_clients else 'No'}
-        - Organic Growth: {'Confirmed' if data.shadow_audit and data.shadow_audit.organic_growth_confirmed else 'No'}
-        - Sandbagging: {'Detected (Bullish)' if data.shadow_audit and data.shadow_audit.sandbagging_detected else 'No'}
         - Ignition: {'Yes' if data.physics and data.physics.is_ignition else 'No'}
         - Broken Trend: {'Yes' if data.physics and data.physics.is_broken_trend else 'No'}
         """
@@ -124,4 +205,4 @@ class Tribunal:
             rationale = self.llm.analyze_text(prompt, system_prompt="You are a hedge fund analyst writing a brief summary.")
             return rationale.strip()[:500]
         except:
-            return f"{decision.value} decision based on MGP V3.5 gates analysis."
+            return f"{decision.value} decision based on MGP V3.5 Blue Sky gates analysis."

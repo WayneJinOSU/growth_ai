@@ -12,7 +12,7 @@ Phase 3: Intelligence (情报收集) + Phase 4: Valuation (估值)
 from tools.llm import LLMClient
 from tools.search import SearchClient
 from tools.fmp import FMPClient
-from core.data_models import IntelligenceData, IdentifierData, BlueSkyData, CatalystData, GatekeeperData, MacroMode
+from core.data_models import IntelligenceData, IdentifierData, BlueSkyData, CatalystData, GatekeeperData, MacroMode, SearchReference
 
 
 class Intelligence:
@@ -52,11 +52,24 @@ class Intelligence:
         self.fmp = fmp_client
 
     def gather(self, ticker: str, identifier_data: IdentifierData, 
-               gatekeeper_data: GatekeeperData = None) -> IntelligenceData:
+               gatekeeper_data: GatekeeperData = None, references: list = None) -> IntelligenceData:
         """
         收集 Phase 3 & 4 数据
         """
         data = IntelligenceData()
+        if references is None:
+            references = []
+
+        def _collect_refs(results):
+            for r in results:
+                if r.get('url'):
+                    # Check for dupes
+                    if not any(ref.url == r['url'] for ref in references):
+                        references.append(SearchReference(
+                            title=r.get('title', 'No Title'),
+                            url=r['url'],
+                            snippet=r.get('content', '')[:100] + '...'
+                        ))
 
         # ========== Phase 3: Intelligence (Soft Skills) ==========
         print(f"  [Phase 3] Gathering Intelligence for {ticker}...")
@@ -68,6 +81,7 @@ class Intelligence:
             query = f"{ticker} {kpi} latest quarter 2024 2025 financial results"
             print(f"      Searching for {kpi}: {query}")
             search_results = self.search.search(query, max_results=3)
+            _collect_refs(search_results)
             context = "\n".join([r['content'] for r in search_results if r and 'content' in r])
             
             if search_results:
@@ -94,6 +108,7 @@ class Intelligence:
         print("    - Analyzing Management Integrity...")
         query_mgmt = f"{ticker} management guidance track record beat miss history"
         res_mgmt = self.search.search(query_mgmt, max_results=3)
+        _collect_refs(res_mgmt)
         context_mgmt = "\n".join([r['content'] for r in res_mgmt])
 
         prompt_mgmt = f"""
@@ -114,6 +129,7 @@ class Intelligence:
         print("    - Analyzing Competitive Moat...")
         query_moat = f"{ticker} competitive advantage moat analysis new products"
         res_moat = self.search.search(query_moat, max_results=3)
+        _collect_refs(res_moat)
         context_moat = "\n".join([r['content'] for r in res_moat])
 
         prompt_moat = f"""
@@ -134,6 +150,7 @@ class Intelligence:
         print("    - Analyzing Insider Activity...")
         query_insider = f"{ticker} insider trading recent selling buying"
         res_insider = self.search.search(query_insider, max_results=3)
+        _collect_refs(res_insider)
         context_insider = "\n".join([r['content'] for r in res_insider])
 
         prompt_insider = f"""
@@ -154,6 +171,7 @@ class Intelligence:
         print("    - Analyzing Price Action Context...")
         query_drop = f"{ticker} stock price drop reason recent news"
         res_drop = self.search.search(query_drop, max_results=3)
+        _collect_refs(res_drop)
         context_drop = "\n".join([r['content'] for r in res_drop])
 
         prompt_drop = f"""
@@ -175,11 +193,11 @@ class Intelligence:
 
         # 6. Blue Sky Analysis (V3.5) - R&D & TAM
         print("    - Performing Blue Sky Analysis...")
-        data.blue_sky = self._analyze_blue_sky(ticker)
+        data.blue_sky = self._analyze_blue_sky(ticker, references)
 
         # 7. Catalyst Analysis (V3.5) - Events & Variant Perception
         print("    - Performing Catalyst Analysis...")
-        data.catalysts = self._analyze_catalysts(ticker)
+        data.catalysts = self._analyze_catalysts(ticker, references)
 
         # 8. [V3.5] Macro-Adjusted Valuation Analysis
         if gatekeeper_data:
@@ -189,13 +207,19 @@ class Intelligence:
 
         return data
 
-    def _analyze_blue_sky(self, ticker: str) -> BlueSkyData:
+    def _analyze_blue_sky(self, ticker: str, references: list) -> BlueSkyData:
         blue_sky = BlueSkyData()
         
+        def _collect_refs(results):
+            for r in results:
+                if r.get('url') and not any(ref.url == r['url'] for ref in references):
+                    references.append(SearchReference(title=r.get('title',''), url=r['url']))
+
         # Search for R&D and TAM info
         query = f"{ticker} R&D investment areas new product expansion TAM analysis"
         print(f"      Searching for Blue Sky potential: {query}")
         results = self.search.search(query, max_results=3)
+        _collect_refs(results)
         context = "\n".join([r['content'] for r in results])
         
         # Analyze R&D Effectiveness (Second Curve)
@@ -236,13 +260,19 @@ class Intelligence:
         
         return blue_sky
 
-    def _analyze_catalysts(self, ticker: str) -> CatalystData:
+    def _analyze_catalysts(self, ticker: str, references: list) -> CatalystData:
         catalyst = CatalystData()
         
+        def _collect_refs(results):
+            for r in results:
+                if r.get('url') and not any(ref.url == r['url'] for ref in references):
+                    references.append(SearchReference(title=r.get('title',''), url=r['url']))
+
         # Search for upcoming events
         query_events = f"{ticker} upcoming earnings date investor day product launch 2025"
         print(f"      Searching for Catalysts: {query_events}")
         results = self.search.search(query_events, max_results=3)
+        _collect_refs(results)
         context = "\n".join([r['content'] for r in results])
         
         prompt_events = f"""
@@ -282,6 +312,7 @@ class Intelligence:
         query_var = f"{ticker} wall street consensus vs reality KPI tracking"
         print(f"      Searching for Variant Perception: {query_var}")
         results_var = self.search.search(query_var, max_results=3)
+        _collect_refs(results_var)
         context_var = "\n".join([r['content'] for r in results_var])
         
         prompt_var = f"""
@@ -340,7 +371,6 @@ class Intelligence:
         
         # 构建估值分析
         analysis_parts = []
-        analysis_parts.append("=== V3.5 Macro-Adjusted Valuation ===")
         analysis_parts.append(f"Macro Environment: {macro_mode.value} (US10Y: {us10y:.2f}%)" if us10y else f"Macro Environment: {macro_mode.value}")
         if vix:
             vix_status = "⚠️ PANIC" if vix > 30 else "Normal"
