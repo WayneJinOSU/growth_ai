@@ -109,7 +109,7 @@ def analyze_ticker_v35(ticker: str, fmp: FMPClient, llm: LLMClient, search: Sear
     return data
 
 def generate_report_content_v35(data: CompanyData) -> str:
-    """Generate V3.5 Report"""
+    """Generate V3.5 Report - Enhanced with detailed analysis"""
     decision = data.tribunal.decision.value if data.tribunal else "N/A"
     
     # Physics Icons
@@ -122,41 +122,159 @@ def generate_report_content_v35(data: CompanyData) -> str:
         elif data.physics.is_broken_trend:
             physics_status = "⚠️ BROKEN TREND"
     
+    # Build Deep Audit Details
+    deep_audit_details = ""
+    if data.deep_audit:
+        da = data.deep_audit
+        deep_audit_details = f"""
+### Detailed Metrics
+| Metric | Value | Formula/Source |
+|--------|-------|----------------|
+| Revenue CAGR (N-Year) | {f"{da.revenue_cagr_ny:.1%}" if da.revenue_cagr_ny else "N/A"} | (Latest Rev / Oldest Rev)^(1/N) - 1 |
+| Q/Q Revenue Growth | {f"{da.revenue_growth_current_q:.1%}" if da.revenue_growth_current_q else "N/A"} | (Current Q Rev - YoY Q Rev) / YoY Q Rev |
+| SBC / Revenue | {f"{da.sbc_revenue_ratio:.1%}" if da.sbc_revenue_ratio else "N/A"} | TTM SBC / TTM Revenue |
+| Rule of 40 | {f"{da.rule_of_40:.1%}" if da.rule_of_40 else "N/A"} | Rev Growth + FCF Margin |
+| Inventory Health | {da.inventory_health or "N/A"} | Inv Days trend vs Gross Margin |
+| Insider Selling Risk | {"⚠️ YES" if da.insider_selling_risk else "No"} | Yahoo Finance Insider TX |
+"""
+    
+    # Build Shadow Audit Details
+    shadow_audit_details = ""
+    if data.shadow_audit:
+        sa = data.shadow_audit
+        shadow_audit_details = f"""
+### Logic & Evidence
+- **LinkedIn Hiring Audit:** {sa.linkedin_hiring_audit or "Not checked"}
+- **Customer Quality:** {sa.customer_quality_audit or "Not checked"}
+- **Marketing Efficiency:** {sa.marketing_efficiency or "Not checked"}
+- **App Store Rank:** {sa.app_store_rank or "Not checked"}
+- **Sandbagging:** {sa.sandbagging_details or "Not checked"}
+"""
+    
+    # Build Physics Details
+    physics_details = ""
+    if data.physics:
+        p = data.physics
+        physics_details = f"""
+### Technical Indicators
+| Indicator | Value | Condition |
+|-----------|-------|-----------|
+| Current Price | ${(p.current_price if p.current_price else 0):.2f} | - |
+| SMA 20 | ${(p.sma_20 if p.sma_20 else 0):.2f} | Life Line |
+| Relative Volume | {f"{p.relative_volume:.1f}x" if p.relative_volume else "N/A"} | Vol / Avg Vol 20 |
+| Price vs SMA20 | {"Above ✅" if p.current_price and p.sma_20 and p.current_price > p.sma_20 else "Below ⚠️"} | Trend |
+
+### Signal Analysis
+- **Ignition Criteria:** Price > SMA20 + RVol > 2.0 + Strong Close (>0.7) → {"MET ✅" if p.is_ignition else "NOT MET"}
+- **Accumulation Criteria:** Range < 2% + RVol > 1.5 → {"MET ✅" if p.is_accumulation else "NOT MET"}
+- **Broken Trend:** Close < SMA20 for 3 days → {"YES ⚠️" if p.is_broken_trend else "NO"}
+"""
+    
+    # Build Intelligence Details
+    intelligence_details = ""
+    if data.intelligence:
+        intel = data.intelligence
+        intelligence_details = f"""
+### Management Integrity
+{intel.management_integrity or "N/A"}
+
+### Competitive Moat
+{intel.product_moat or "N/A"}
+
+### Insider Activity
+{intel.insider_activity or "N/A"}
+
+### Price Dislocation Context
+{intel.dislocation_context or "N/A"}
+"""
+    
+    # Build Blue Sky & Catalysts
+    valuation_details = ""
+    if data.intelligence:
+        intel = data.intelligence
+        blue_sky = intel.blue_sky
+        catalysts = intel.catalysts
+        macro_val = intel.kpi_values.get('macro_valuation_analysis', 'N/A')
+        
+        rnd_eff = blue_sky.rnd_effectiveness if blue_sky else "N/A"
+        tam_exp = blue_sky.tam_expansion if blue_sky else "N/A"
+        events = ", ".join(catalysts.upcoming_events) if catalysts and catalysts.upcoming_events else "N/A"
+        cat_analysis = catalysts.catalyst_analysis if catalysts and catalysts.catalyst_analysis else "N/A"
+        variant = catalysts.variant_perception if catalysts else "N/A"
+        
+        valuation_details = f"""
+### Macro-Adjusted Valuation
+{macro_val}
+
+### Blue Sky Analysis
+**R&D Effectiveness (Second Curve):**
+{rnd_eff}
+
+**TAM Expansion:**
+{tam_exp}
+
+### Catalysts
+**Upcoming Events:** {events}
+
+**Event Analysis:**
+{cat_analysis}
+
+**Variant Perception:**
+{variant}
+"""
+    
     content = f"""# MGP V3.5 Singularity Report: {data.ticker}
 **Date:** {datetime.now().strftime("%Y-%m-%d")}
 **Verdict:** {decision}
 **Physics:** {physics_status}
-**Price:** ${data.current_price:.2f}
+**Price:** ${(data.current_price if data.current_price else 0):.2f}
+
+---
 
 ## Executive Summary
 {data.tribunal.rationale if data.tribunal else 'N/A'}
 
+---
+
 ## 1. The Gatekeeper (Macro & Iron Rule)
 - **Macro Mode:** {data.gatekeeper.macro_mode.value if data.gatekeeper else 'N/A'}
+- **US 10Y Yield:** {f"{data.gatekeeper.us10y_yield:.2f}%" if data.gatekeeper and data.gatekeeper.us10y_yield else 'N/A'}
+- **VIX:** {f"{data.gatekeeper.vix_value:.1f}" if data.gatekeeper and data.gatekeeper.vix_value else 'N/A'}
 - **Sector Check:** {'✅ Passed' if data.gatekeeper and data.gatekeeper.sector_check_passed else '❌ Failed'}
 - **Future 20% Rule:** {'✅ Passed' if data.gatekeeper and data.gatekeeper.future_revenue_cagr_3y and data.gatekeeper.future_revenue_cagr_3y > 0.2 else '⚠️ Warning'}
 
+---
+
 ## 2. Deep Audit (Hygiene)
 - **Result:** {'✅ Passed' if data.deep_audit and data.deep_audit.passed else '❌ Failed'}
-- **Fail Reason:** {data.deep_audit.fail_reason if data.deep_audit else 'N/A'}
-- **Rule of 40:** {f"{data.deep_audit.rule_of_40:.1%}" if data.deep_audit and data.deep_audit.rule_of_40 else 'N/A'}
-- **Inventory Health:** {data.deep_audit.inventory_health if data.deep_audit else 'N/A'}
-- **Insider Risk:** {'⚠️ DETECTED' if data.deep_audit and data.deep_audit.insider_selling_risk else 'None'}
+- **Fail Reason:** {data.deep_audit.fail_reason if data.deep_audit and data.deep_audit.fail_reason else 'None'}
+{deep_audit_details}
+
+---
 
 ## 3. Shadow Audit
 - **King Makers:** {'✅ Yes' if data.shadow_audit and data.shadow_audit.has_king_maker_clients else 'No'}
 - **Organic Growth:** {'✅ Confirmed' if data.shadow_audit and data.shadow_audit.organic_growth_confirmed else 'Unconfirmed'}
 - **Fake Tech:** {'⚠️ YES' if data.shadow_audit and data.shadow_audit.is_fake_tech else 'No'}
+{shadow_audit_details}
+
+---
 
 ## 4. Physics (VPA)
+- **Signal:** {physics_status}
 - **Ignition:** {'✅ YES' if data.physics and data.physics.is_ignition else 'No'}
 - **Accumulation:** {'✅ YES' if data.physics and data.physics.is_accumulation else 'No'}
-- **RVol:** {f"{data.physics.relative_volume:.1f}x" if data.physics and data.physics.relative_volume else 'N/A'}
+{physics_details}
 
-## 5. Valuation & Catalysts
-- **Moat:** {data.intelligence.product_moat if data.intelligence else 'N/A'}
-- **Valuation:** {data.intelligence.kpi_values.get('macro_valuation_analysis', 'N/A') if data.intelligence else 'N/A'}
-- **Catalysts:** {', '.join(data.intelligence.catalysts.upcoming_events) if data.intelligence and data.intelligence.catalysts else 'N/A'}
+---
+
+## 5. Intelligence & Soft Factors
+{intelligence_details}
+
+---
+
+## 6. Valuation & Catalysts
+{valuation_details}
 
 ---
 *Generated by MGP V3.5 Singularity Engine*
@@ -165,9 +283,9 @@ def generate_report_content_v35(data: CompanyData) -> str:
 
 def main():
     parser = argparse.ArgumentParser(description="MGP V3.5 Singularity Edition")
-    parser.add_argument("--tickers", type=str, default="DUOL", help="Comma-separated tickers")
+    parser.add_argument("--tickers", type=str, default="AXON", help="Comma-separated tickers")
     parser.add_argument("--force", action="store_true", help="Force deep dive")
-    parser.add_argument("--scan_mid_cap", default=True,  action="store_true", help="Scan for Mid-Cap (10B-50B) stocks using FMP Screener")
+    parser.add_argument("--scan_mid_cap", default=False,  action="store_true", help="Scan for Mid-Cap (10B-50B) stocks using FMP Screener")
     parser.add_argument("--limit", type=int, default=50, help="Limit number of stocks to analyze from screener")
     args = parser.parse_args()
     

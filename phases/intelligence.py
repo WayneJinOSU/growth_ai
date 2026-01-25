@@ -258,6 +258,26 @@ class Intelligence:
         catalyst.upcoming_events = [line.strip('- *') for line in events_text.split('\n') if line.strip()]
         print(f"      Upcoming Events: {catalyst.upcoming_events}")
         
+        # Analyze Catalyst Impact (Narrative)
+        prompt_analysis = f"""
+        Analyze the strategic impact of these upcoming events for {ticker}:
+        {events_text}
+        
+        Context:
+        {context}
+        
+        Which event is the most critical? What is the expected market reaction?
+        
+        Output Requirements:
+        - Provide a detailed 1-2 paragraph analysis.
+        - Focus on the "So What?" (Implications).
+        - Do NOT just list the dates again; explain their significance.
+        - Direct output only.
+        """
+        catalyst.catalyst_analysis = self.llm.analyze_text(prompt_analysis).strip()
+        print(f"      Catalyst Analysis: {catalyst.catalyst_analysis[:100]}...")
+
+        
         # Analyze Variant Perception
         query_var = f"{ticker} wall street consensus vs reality KPI tracking"
         print(f"      Searching for Variant Perception: {query_var}")

@@ -115,6 +115,7 @@ class BlueSkyData(BaseModel):
 
 class CatalystData(BaseModel):
     upcoming_events: List[str] = Field(default_factory=list)
+    catalyst_analysis: Optional[str] = None # Detailed narrative
     variant_perception: Optional[str] = None
     coattail_effect: Optional[str] = None # V3.5
 

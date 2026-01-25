@@ -9,9 +9,6 @@ Phase 1: The Deep Audit (深度审计) - V3.5 Singularity
 3. 财务铁律 (CAGR, 减速熔断, SBC 警戒线)
 4. 全局测谎仪 (CFO背离, 内部人抛售)
 """
-
-import numpy as np
-from typing import List, Optional, Tuple
 from tools.fmp import FMPClient
 from tools.yahoo import YahooClient
 from tools.llm import LLMClient

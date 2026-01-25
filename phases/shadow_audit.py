@@ -32,27 +32,57 @@ class ShadowAudit:
         # ========== 1. Fake Tech Detection (LinkedIn Audit) ==========
         # 适用于所有声称是 Tech 的公司
         print("    - Checking LinkedIn Hiring (Fake Tech Audit)...")
-        # 逻辑：如果是真科技公司，应该在招 AI/ML/Engineering 人才，而不是只招 Sales/Marketing
+        # LLM-Enhanced: 如果是真科技公司，应该在招 AI/ML/Engineering 人才
         query_hiring = f"{company_name} {ticker} hiring careers AI engineer machine learning data scientist"
         if self.search:
             results = self.search.search(query_hiring, max_results=3)
             if results:
-                content = "\n".join([r.get('content', '')[:300] for r in results])
+                content = "\n".join([r.get('content', '')[:500] for r in results])
                 
-                # 简单规则：如果有 AI/ML/Engineer 关键词 -> Pass
-                # 这里可以用 LLM 增强，为节省成本先用关键词
-                tech_keywords = ["engineer", "developer", "data scientist", "machine learning", " ai ", "r&d"]
-                is_hiring_tech = any(k in content.lower() for k in tech_keywords)
+                # V3.5 LLM Enhancement for Fake Tech
+                prompt = f"""
+                Analyze if {company_name} ({ticker}) is a "Fake Tech" company based on hiring data:
                 
-                if is_hiring_tech:
-                    data.linkedin_hiring_audit = "Active Tech Hiring Detected"
-                    print("      ✓ Tech Hiring Active")
-                else:
-                    # 如果找不到，可能是 False Positive，也可能是真 Fake Tech
-                    # 标记为 Warning
-                    data.is_fake_tech = True 
-                    data.linkedin_hiring_audit = "No significant tech hiring found (Warning)"
-                    print("      ⚠️ Potential Fake Tech: No visible tech hiring")
+                {content}
+                
+                Task:
+                Determine if they are actively hiring for core R&D/Tech roles (AI, ML, Engineering, Data Science) vs just Sales/Marketing.
+                
+                Reply with ONLY one of:
+                - "REAL_TECH" (Found significant engineering/AI hiring)
+                - "FAKE_TECH" (Mostly sales/marketing/general hiring, little tech)
+                - "INCONCLUSIVE" (Not enough info)
+                
+                Then add a pipe "|" and a ONE sentence evidence summary. 
+                Example: "REAL_TECH|Hiring 3 Machine Learning Engineers and a CTO."
+                """
+                
+                try:
+                    llm_result = self.llm.analyze_text(prompt, system_prompt="You are a tech recruiter auditor.").strip()
+                    decision_part = llm_result.split('|')[0].strip()
+                    evidence_part = llm_result.split('|')[1].strip() if '|' in llm_result else "LLM Analysis"
+                    
+                    if "REAL_TECH" in decision_part:
+                        data.linkedin_hiring_audit = f"Active Tech Hiring Verified: {evidence_part}"
+                        print(f"      ✓ Tech Hiring Active ({evidence_part})")
+                    elif "FAKE_TECH" in decision_part:
+                        data.is_fake_tech = True
+                        data.linkedin_hiring_audit = f"WARNING: Potential Fake Tech. {evidence_part}"
+                        print(f"      ⚠️ Potential Fake Tech: {evidence_part}")
+                    else:
+                        data.linkedin_hiring_audit = "Inconclusive hiring data"
+                        print("      Inconclusive hiring data")
+                        
+                except Exception as e:
+                    print(f"      [Error] LLM Hiring Audit failed: {e}")
+                    # Fallback to keywords
+                    tech_keywords = ["engineer", "developer", "data scientist", "machine learning", " ai ", "r&d"]
+                    is_hiring_tech = any(k in content.lower() for k in tech_keywords)
+                    if is_hiring_tech:
+                        data.linkedin_hiring_audit = "Active Tech Hiring (Keyword Verified)"
+                    else:
+                        data.is_fake_tech = True
+                        data.linkedin_hiring_audit = "No significant tech hiring found (Keyword Check)"
         
         # ========== 2. Path A: King Maker Validation ==========
         # 适用于 B2B, Hardware, SaaS
@@ -95,12 +125,14 @@ class ShadowAudit:
                 
                 # 判定：S&M% 下降或持平 (+1%容忍)，且营收增长 -> 自然增长
                 # 如果 S&M% 暴涨，说明增长是买来的
+                sm_trend = f"S&M moved {sm_ratio_prev:.1%} -> {sm_ratio_curr:.1%}"
+                
                 if sm_ratio_curr <= (sm_ratio_prev + 0.01) and rev_curr > rev_prev:
                     data.organic_growth_confirmed = True
-                    data.marketing_efficiency = "Efficient (Organic)"
+                    data.marketing_efficiency = f"Efficient (Organic): {sm_trend} with growing revenue"
                     print("      ✓ Organic Growth Confirmed")
                 else:
-                    data.marketing_efficiency = "Inefficient (Bought Growth)"
+                    data.marketing_efficiency = f"Inefficient (Bought Growth): {sm_trend}"
                     print("      ⚠️ Growth is likely paid (S&M rising faster)")
                     
             # 补充：App Store Rank 检查 (需特定 API，此处用 Search 模拟)
