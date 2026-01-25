@@ -32,9 +32,31 @@ class ShadowAudit:
             references = []
 
         def _collect_refs(results):
+            # 1. Deduplicate & Collect
+            new_refs = []
             for r in results:
-                if r.get('url') and not any(ref.url == r['url'] for ref in references):
-                    references.append(SearchReference(title=r.get('title',''), url=r['url']))
+                if r.get('url'):
+                    if not any(ref.url == r['url'] for ref in references):
+                        # Assign new ID
+                        new_id = len(references) + 1
+                        ref = SearchReference(
+                            id=new_id,
+                            title=r.get('title', 'No Title'),
+                            url=r['url'],
+                            snippet=r.get('content', '')[:100] + '...'
+                        )
+                        references.append(ref)
+                        new_refs.append(ref)
+                    else:
+                        existing = next(ref for ref in references if ref.url == r['url'])
+                        new_refs.append(existing)
+            
+            # 2. Build Context String with [ID]
+            context_parts = []
+            for r, ref in zip(results, new_refs):
+                content = r.get('content', '')
+                context_parts.append(f"[{ref.id}] {ref.title}: {content}")
+            return "\n\n".join(context_parts)
         
         # ========== 1. Fake Tech Detection (LinkedIn Audit) ==========
         # 适用于所有声称是 Tech 的公司
@@ -43,15 +65,14 @@ class ShadowAudit:
         query_hiring = f"{company_name} {ticker} hiring careers AI engineer machine learning data scientist"
         if self.search:
             results = self.search.search(query_hiring, max_results=3)
-            _collect_refs(results)
+            context = _collect_refs(results)
             if results:
-                content = "\n".join([r.get('content', '')[:500] for r in results])
                 
                 # V3.5 LLM Enhancement for Fake Tech
                 prompt = f"""
                 Analyze if {company_name} ({ticker}) is a "Fake Tech" company based on hiring data:
                 
-                {content}
+                {context}
                 
                 Task:
                 Determine if they are actively hiring for core R&D/Tech roles (AI, ML, Engineering, Data Science) vs just Sales/Marketing.
@@ -62,7 +83,8 @@ class ShadowAudit:
                 - "INCONCLUSIVE" (Not enough info)
                 
                 Then add a pipe "|" and a ONE sentence evidence summary. 
-                Example: "REAL_TECH|Hiring 3 Machine Learning Engineers and a CTO."
+                Example: "REAL_TECH|Hiring 3 Machine Learning Engineers and a CTO [3]."
+                Use [ID] citations in evidence summary if possible.
                 """
                 
                 try:
@@ -99,13 +121,12 @@ class ShadowAudit:
             if self.search:
                 query_client = f"{company_name} {ticker} major customers partners Apple Microsoft Nvidia Amazon Google government contract"
                 results = self.search.search(query_client, max_results=3)
-                _collect_refs(results)
+                context = _collect_refs(results)
                 
                 if results:
-                    content = "\n".join([r.get('content', '') for r in results])
                     king_makers = ["apple", "microsoft", "nvidia", "amazon", "google", "meta", "tesla", "government", "defense"]
                     
-                    found_kings = [k for k in king_makers if k in content.lower()]
+                    found_kings = [k for k in king_makers if k in context.lower()]
                     
                     if found_kings:
                         data.has_king_maker_clients = True
@@ -148,7 +169,7 @@ class ShadowAudit:
             if self.search:
                 query_app = f"{company_name} app store ranking top charts"
                 results = self.search.search(query_app, max_results=1)
-                _collect_refs(results)
+                _collect_refs(results) # Just collect, context logic is simple usage below
                 if results:
                     content = results[0].get('content', '').lower()
                     if "top" in content or "#1" in content or "most downloaded" in content:
@@ -162,16 +183,15 @@ class ShadowAudit:
             # 搜索最近的 Earnings Guidance / Press Releases
             query_guidance = f"{company_name} {ticker} earnings guidance outlook conservative beat raise 2024 2025"
             results = self.search.search(query_guidance, max_results=3)
-            _collect_refs(results)
+            context = _collect_refs(results)
             
             if results:
-                content = "\n".join([r.get('content', '')[:400] for r in results])
                 
                 # 使用 LLM 分析是否有 Sandbagging 信号
                 prompt = f"""
                 Analyze if {company_name} ({ticker}) management is "sandbagging" (deliberately setting low expectations):
                 
-                {content}
+                {context}
                 
                 Signs of sandbagging:
                 - Conservative guidance despite strong underlying metrics

@@ -61,15 +61,33 @@ class Intelligence:
             references = []
 
         def _collect_refs(results):
+            # 1. Deduplicate & Collect
+            new_refs = []
             for r in results:
                 if r.get('url'):
-                    # Check for dupes
                     if not any(ref.url == r['url'] for ref in references):
-                        references.append(SearchReference(
+                        # Assign new ID
+                        new_id = len(references) + 1
+                        ref = SearchReference(
+                            id=new_id,
                             title=r.get('title', 'No Title'),
                             url=r['url'],
                             snippet=r.get('content', '')[:100] + '...'
-                        ))
+                        )
+                        references.append(ref)
+                        new_refs.append(ref)
+                    else:
+                        # Find existing ref
+                        existing = next(ref for ref in references if ref.url == r['url'])
+                        new_refs.append(existing)
+            
+            # 2. Build Context String with [ID]
+            # Format: "[ID] Title: Content..."
+            context_parts = []
+            for r, ref in zip(results, new_refs):
+                content = r.get('content', '')
+                context_parts.append(f"[{ref.id}] {ref.title}: {content}")
+            return "\n\n".join(context_parts)
 
         # ========== Phase 3: Intelligence (Soft Skills) ==========
         print(f"  [Phase 3] Gathering Intelligence for {ticker}...")
@@ -81,8 +99,8 @@ class Intelligence:
             query = f"{ticker} {kpi} latest quarter 2024 2025 financial results"
             print(f"      Searching for {kpi}: {query}")
             search_results = self.search.search(query, max_results=3)
-            _collect_refs(search_results)
-            context = "\n".join([r['content'] for r in search_results if r and 'content' in r])
+            search_results = self.search.search(query, max_results=3)
+            context = _collect_refs(search_results)
             
             if search_results:
                 print(f"      [Search] Found {len(search_results)} results. Snippet: {search_results[0]['content'][:100]}...")
@@ -93,6 +111,7 @@ class Intelligence:
             Based on the search results below, extract the latest value for the KPI: {kpi} for {ticker}.
             If found, provide ONLY the value and a very brief context (e.g., "120% (Q3 2024)").
             Do NOT include any introductory text or explanations.
+            Use [ID] citations if applicable.
             If not found, return "Not Found".
 
             Search Results:
@@ -108,8 +127,7 @@ class Intelligence:
         print("    - Analyzing Management Integrity...")
         query_mgmt = f"{ticker} management guidance track record beat miss history"
         res_mgmt = self.search.search(query_mgmt, max_results=3)
-        _collect_refs(res_mgmt)
-        context_mgmt = "\n".join([r['content'] for r in res_mgmt])
+        context_mgmt = _collect_refs(res_mgmt)
 
         prompt_mgmt = f"""
         Analyze the management integrity of {ticker} based on:
@@ -121,6 +139,7 @@ class Intelligence:
         - Provide a detailed assessment citing specific guidance vs. actual performance examples.
         - Direct answer only. No "Based on..." or "The search results indicate...".
         - Do not limit length; be thorough.
+        - IMPORTANT: Cite sources using [ID] format (e.g. "CEO stated growth is slowing [1]").
         """
         data.management_integrity = self.llm.analyze_text(prompt_mgmt).strip()
         print(f"      Result: {data.management_integrity[:100]}...")
@@ -129,8 +148,7 @@ class Intelligence:
         print("    - Analyzing Competitive Moat...")
         query_moat = f"{ticker} competitive advantage moat analysis new products"
         res_moat = self.search.search(query_moat, max_results=3)
-        _collect_refs(res_moat)
-        context_moat = "\n".join([r['content'] for r in res_moat])
+        context_moat = _collect_refs(res_moat)
 
         prompt_moat = f"""
         Analyze the competitive moat of {ticker} based on:
@@ -142,6 +160,7 @@ class Intelligence:
         - Detail specific competitive advantages, new product traction, and competitive threats.
         - Use data where possible.
         - Direct answer only. No "Based on..." or intro text.
+        - IMPORTANT: Cite sources using [ID] format at the end of claims.
         """
         data.product_moat = self.llm.analyze_text(prompt_moat).strip()
         print(f"      Result: {data.product_moat[:100]}...")
@@ -150,8 +169,7 @@ class Intelligence:
         print("    - Analyzing Insider Activity...")
         query_insider = f"{ticker} insider trading recent selling buying"
         res_insider = self.search.search(query_insider, max_results=3)
-        _collect_refs(res_insider)
-        context_insider = "\n".join([r['content'] for r in res_insider])
+        context_insider = _collect_refs(res_insider)
 
         prompt_insider = f"""
         Analyze insider activity for {ticker} based on:
@@ -163,6 +181,7 @@ class Intelligence:
         - Distinguish between routine options exercise and opportunistic selling/buying.
         - Provide context on volume if available.
         - Direct answer only. No "Based on..." or intro text.
+        - IMPORTANT: Cite sources using [ID] format.
         """
         data.insider_activity = self.llm.analyze_text(prompt_insider).strip()
         print(f"      Result: {data.insider_activity[:100]}...")
@@ -171,8 +190,7 @@ class Intelligence:
         print("    - Analyzing Price Action Context...")
         query_drop = f"{ticker} stock price drop reason recent news"
         res_drop = self.search.search(query_drop, max_results=3)
-        _collect_refs(res_drop)
-        context_drop = "\n".join([r['content'] for r in res_drop])
+        context_drop = _collect_refs(res_drop)
 
         prompt_drop = f"""
         Analyze the recent price action of {ticker} based on:
@@ -184,6 +202,7 @@ class Intelligence:
         - Analyze the drivers of price action.
         - Distinguish macro vs. company-specific issues.
         - Direct answer only. No "Based on..." or intro text.
+        - IMPORTANT: Cite sources using [ID] format.
         """
         data.dislocation_context = self.llm.analyze_text(prompt_drop).strip()
         print(f"      Result: {data.dislocation_context[:100]}...")
@@ -211,16 +230,37 @@ class Intelligence:
         blue_sky = BlueSkyData()
         
         def _collect_refs(results):
+            # 1. Deduplicate & Collect
+            new_refs = []
             for r in results:
-                if r.get('url') and not any(ref.url == r['url'] for ref in references):
-                    references.append(SearchReference(title=r.get('title',''), url=r['url']))
+                if r.get('url'):
+                    if not any(ref.url == r['url'] for ref in references):
+                        # Assign new ID
+                        new_id = len(references) + 1
+                        ref = SearchReference(
+                            id=new_id,
+                            title=r.get('title', 'No Title'),
+                            url=r['url'],
+                            snippet=r.get('content', '')[:100] + '...'
+                        )
+                        references.append(ref)
+                        new_refs.append(ref)
+                    else:
+                        existing = next(ref for ref in references if ref.url == r['url'])
+                        new_refs.append(existing)
+            
+            # 2. Build Context String with [ID]
+            context_parts = []
+            for r, ref in zip(results, new_refs):
+                content = r.get('content', '')
+                context_parts.append(f"[{ref.id}] {ref.title}: {content}")
+            return "\n\n".join(context_parts)
 
         # Search for R&D and TAM info
         query = f"{ticker} R&D investment areas new product expansion TAM analysis"
         print(f"      Searching for Blue Sky potential: {query}")
         results = self.search.search(query, max_results=3)
-        _collect_refs(results)
-        context = "\n".join([r['content'] for r in results])
+        context = _collect_refs(results)
         
         # Analyze R&D Effectiveness (Second Curve)
         prompt_rnd = f"""
@@ -236,6 +276,7 @@ class Intelligence:
         - NO introductory phrases like "Based on the provided text".
         - NO Markdown headers (e.g. ## R&D).
         - Allow multi-paragraph deep dive; do not be overly concise.
+        - IMPORTANT: Cite specific sources using [ID] format (e.g. "R&D budget increased 15% [2]").
         """
         blue_sky.rnd_effectiveness = self.llm.analyze_text(prompt_rnd).strip()
         print(f"      R&D Effectiveness: {blue_sky.rnd_effectiveness[:100]}...")
@@ -254,6 +295,7 @@ class Intelligence:
         - NO introductory phrases.
         - NO Markdown headers.
         - Allow multi-paragraph deep dive.
+        - IMPORTANT: Cite sources using [ID] format.
         """
         blue_sky.tam_expansion = self.llm.analyze_text(prompt_tam).strip()
         print(f"      TAM Expansion: {blue_sky.tam_expansion[:100]}...")
@@ -264,24 +306,46 @@ class Intelligence:
         catalyst = CatalystData()
         
         def _collect_refs(results):
+            # 1. Deduplicate & Collect
+            new_refs = []
             for r in results:
-                if r.get('url') and not any(ref.url == r['url'] for ref in references):
-                    references.append(SearchReference(title=r.get('title',''), url=r['url']))
+                if r.get('url'):
+                    if not any(ref.url == r['url'] for ref in references):
+                        # Assign new ID
+                        new_id = len(references) + 1
+                        ref = SearchReference(
+                            id=new_id,
+                            title=r.get('title', 'No Title'),
+                            url=r['url'],
+                            snippet=r.get('content', '')[:100] + '...'
+                        )
+                        references.append(ref)
+                        new_refs.append(ref)
+                    else:
+                        existing = next(ref for ref in references if ref.url == r['url'])
+                        new_refs.append(existing)
+            
+            # 2. Build Context String with [ID]
+            context_parts = []
+            for r, ref in zip(results, new_refs):
+                content = r.get('content', '')
+                context_parts.append(f"[{ref.id}] {ref.title}: {content}")
+            return "\n\n".join(context_parts)
 
         # Search for upcoming events
         query_events = f"{ticker} upcoming earnings date investor day product launch 2025"
         print(f"      Searching for Catalysts: {query_events}")
         results = self.search.search(query_events, max_results=3)
-        _collect_refs(results)
-        context = "\n".join([r['content'] for r in results])
+        context = _collect_refs(results)
         
         prompt_events = f"""
         List upcoming major events for {ticker} in the next 3-9 months based on:
         {context}
         
         Focus on: Earnings, Investor Days, Product Launches.
-        Return a list of strings, e.g. ["Earnings: Aug 25", "Investor Day: Oct 10"].
+        Return a list of strings, e.g. ["Earnings: Aug 25 [1]", "Investor Day: Oct 10 [2]"].
         Do NOT include "None" or empty items if possible.
+        Use [ID] citations in the list items if clear.
         """
         events_text = self.llm.analyze_text(prompt_events, system_prompt="List specific events. Direct output only.")
         # Simple split by newline for list, cleaning up
@@ -303,6 +367,7 @@ class Intelligence:
         - Focus on the "So What?" (Implications).
         - Do NOT just list the dates again; explain their significance.
         - Direct output only.
+        - IMPORTANT: Cite sources using [ID] format.
         """
         catalyst.catalyst_analysis = self.llm.analyze_text(prompt_analysis).strip()
         print(f"      Catalyst Analysis: {catalyst.catalyst_analysis[:100]}...")
@@ -312,8 +377,7 @@ class Intelligence:
         query_var = f"{ticker} wall street consensus vs reality KPI tracking"
         print(f"      Searching for Variant Perception: {query_var}")
         results_var = self.search.search(query_var, max_results=3)
-        _collect_refs(results_var)
-        context_var = "\n".join([r['content'] for r in results_var])
+        context_var = _collect_refs(results_var)
         
         prompt_var = f"""
         Identify any "Variant Perception" for {ticker}.
@@ -326,6 +390,7 @@ class Intelligence:
         - NO "Based on the text".
         - NO Markdown headers (e.g. ## Variant Perception).
         - Be provocative but grounded in data.
+        - IMPORTANT: Cite sources using [ID] format.
         """
         catalyst.variant_perception = self.llm.analyze_text(prompt_var).strip()
         print(f"      Variant Perception: {catalyst.variant_perception[:100]}...")

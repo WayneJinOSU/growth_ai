@@ -65,6 +65,26 @@ class CatalystsAnalyzer:
             references = []
 
         # ========== Primary: Thematic Waves ==========
+        
+        # Define helper locally to capture references
+        def _collect_refs(results):
+            new_refs = []
+            for r in results:
+                if r.get('url'):
+                    if not any(ref.url == r['url'] for ref in references):
+                        new_id = len(references) + 1
+                        ref = SearchReference(id=new_id, title=r.get('title',''), url=r['url'])
+                        references.append(ref)
+                        new_refs.append(ref)
+                    else:
+                        existing = next(ref for ref in references if ref.url == r['url'])
+                        new_refs.append(existing)
+            
+            parts = []
+            for r, ref in zip(results, new_refs):
+                parts.append(f"[{ref.id}] {ref.title}: {r.get('content','')}")
+            return "\n\n".join(parts)
+
         print(f"    - [Phase 5] Identifying Thematic Waves for {ticker}...")
         data.thematic_waves, data.wave_strength = self._identify_thematic_waves(
             ticker, company_name, references
@@ -85,6 +105,27 @@ class CatalystsAnalyzer:
         Identify macro thematic waves that the company is riding.
         """
         search_name = company_name or ticker
+        
+        # Helper for this scope if we can't access outer one.
+        # Ideally we'd pass the helper function or move to class method but 
+        # duplicating valid logic is safer for 1-shot tool calls.
+        def _collect_refs(results):
+            if references is None: return ""
+            new_refs = []
+            for r in results:
+                if r.get('url'):
+                    if not any(ref.url == r['url'] for ref in references):
+                        new_id = len(references) + 1
+                        ref = SearchReference(id=new_id, title=r.get('title',''), url=r['url'])
+                        references.append(ref)
+                        new_refs.append(ref)
+                    else:
+                        existing = next(ref for ref in references if ref.url == r['url'])
+                        new_refs.append(existing)
+            parts = []
+            for r, ref in zip(results, new_refs):
+                parts.append(f"[{ref.id}] {ref.title}: {r.get('content','')}")
+            return "\n\n".join(parts)
 
         # Search for macro tailwinds
         query = f"{search_name} macro tailwind industry trend demand driver 2024 2025"
@@ -95,11 +136,9 @@ class CatalystsAnalyzer:
         results = self.search.search(query, max_results=4)
         
         if references is not None:
-             for r in results:
-                if r.get('url') and not any(ref.url == r['url'] for ref in references):
-                    references.append(SearchReference(title=r.get('title',''), url=r['url']))
-                    
-        context = "\n".join([r["content"] for r in results if r and "content" in r])
+             context = _collect_refs(results)
+        else:
+             context = "\n".join([r["content"] for r in results if r and "content" in r])
 
         prompt = f"""
         Analyze the macro tailwinds for {ticker} ({company_name or ''}) based on:
@@ -116,13 +155,13 @@ class CatalystsAnalyzer:
         WAVE: [The primary thematic wave, or "None" if not applicable]
         STRENGTH: [High/Medium/Low/None]
         RATIONALE: [1-2 sentences explaining why this wave applies]
+        
+        Use [ID] citations in RATIONALE if applicable.
 
         Example:
         WAVE: Labor Shortage → AI/Automation Demand
         STRENGTH: High
-        RATIONALE: Police departments face chronic staffing shortages; Axon's Draft One AI reduces report writing time by 80%, making it a mission-critical efficiency tool.
-
-        Direct output only. No headers or extra text.
+        RATIONALE: Police departments face chronic staffing shortages; Axon's Draft One AI reduces report writing time by 80%, making it a mission-critical efficiency tool [1].
         """
 
         response = self.llm.analyze_text(prompt).strip()
@@ -157,16 +196,40 @@ class CatalystsAnalyzer:
         print(f"      Searching: {query}")
         results = self.search.search(query, max_results=3)
         if references is not None:
-             for r in results:
-                if r.get('url') and not any(ref.url == r['url'] for ref in references):
-                    references.append(SearchReference(title=r.get('title',''), url=r['url']))
-        context = "\n".join([r["content"] for r in results if r and "content" in r])
+             def _collect_refs_inner(results):
+                # Re-use logic or just inline simple version since we are inside a method
+                # Better to use the main _collect_refs via a helper or duplicated for now
+                # Given scope, simpler to just inline the ID logic here again or move to class method
+                # Let's assume we copy the logic from analyze() or make analyze() pass a helper
+                # For expedience in this tool call, I will duplicate the ID logic briefly 
+                # actually I can't access analyze scope. 
+                # Let's adhere to the pattern:
+                new_refs = []
+                for r in results:
+                    if r.get('url'):
+                        if not any(ref.url == r['url'] for ref in references):
+                            new_id = len(references) + 1
+                            ref = SearchReference(id=new_id, title=r.get('title',''), url=r['url'])
+                            references.append(ref)
+                            new_refs.append(ref)
+                        else:
+                            existing = next(ref for ref in references if ref.url == r['url'])
+                            new_refs.append(existing)
+                
+                parts = []
+                for r, ref in zip(results, new_refs):
+                    parts.append(f"[{ref.id}] {ref.title}: {r.get('content','')}")
+                return "\n\n".join(parts)
+             
+             context = _collect_refs_inner(results)
+        else:
+             context = "\n".join([r["content"] for r in results if r and "content" in r])
 
         # Extract events
         prompt_events = f"""
         List upcoming major events for {ticker} in the next 6 months based on:
         {context}
-
+        
         Focus on:
         - Earnings Dates
         - Product Launches / Refresh Cycles
@@ -174,11 +237,11 @@ class CatalystsAnalyzer:
 
         Return ONLY a simple list, one event per line.
         Example:
-        - Earnings: Feb 25, 2025
-        - Product Launch: Taser 11 expected Q2 2025
+        - Earnings: Feb 25, 2025 [1]
+        - Product Launch: Taser 11 expected Q2 2025 [2]
         - Investor Day: May 2025
-
-        If no events found, return "None scheduled".
+        
+        Use [ID] citations if possible.
         """
 
         events_text = self.llm.analyze_text(
@@ -204,6 +267,7 @@ class CatalystsAnalyzer:
         2. What is the expected market reaction?
 
         Output: 1-2 paragraphs. Direct analysis only. No headers.
+        Use [ID] citations where appropriate.
         """
 
         analysis = self.llm.analyze_text(prompt_analysis).strip()

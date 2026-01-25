@@ -13,6 +13,7 @@ class BusinessModel(str, Enum):
 
 
 class SearchReference(BaseModel):
+    id: int  # Citation ID (e.g. 1 for [1])
     title: str
     url: str
     snippet: Optional[str] = None
@@ -90,12 +91,6 @@ class ShadowAuditData(BaseModel):
     # Sandbagging (moved from Polygraph)
     sandbagging_detected: bool = False
     sandbagging_details: Optional[str] = None
-
-
-class PolygraphData(BaseModel):
-    cash_flow_divergence_check: bool = True  # True means PASS (No massive divergence)
-    sandbagging_detected: bool = False       # True means Sandbagging detected (Good for Sniper)
-    details: Optional[str] = None
 
 
 class DeepAuditData(BaseModel):
@@ -221,7 +216,6 @@ class CompanyData(BaseModel):
     deep_audit: Optional[DeepAuditData] = None  # Renamed from iron_gate
     shadow_audit: Optional[ShadowAuditData] = None
     identifier: Optional[IdentifierData] = None
-    polygraph: Optional[PolygraphData] = None
     intelligence: Optional[IntelligenceData] = None
     strategic_pricing: Optional[StrategicPricingData] = None  # V3.5 Phase 6
     physics: Optional[PhysicsData] = None  # V3.5 Phase 7

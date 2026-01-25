@@ -309,7 +309,7 @@ def generate_report_content_v35(data: CompanyData) -> str:
             if ref.url not in seen_urls:
                 seen_urls.add(ref.url)
                 title = ref.title.replace('\n', ' ').strip()
-                ref_lines.append(f"- [{title}]({ref.url})")
+                ref_lines.append(f"- [[{ref.id}]] [{title}]({ref.url})")
         references_md = "\n".join(ref_lines)
     else:
         references_md = "No external references cited."
