@@ -19,7 +19,6 @@ class SearchReference(BaseModel):
     snippet: Optional[str] = None
 
 
-
 class Decision(str, Enum):
     # V3.5 New Decisions
     FIRE = "FIRE"  # All gates passed (Ignition)
