@@ -12,6 +12,7 @@ Phase 3: Intelligence (情报收集) + Phase 4: Valuation (估值)
 from tools.llm import LLMClient
 from tools.search import SearchClient
 from tools.fmp import FMPClient
+from datetime import datetime
 from core.data_models import IntelligenceData, IdentifierData, BlueSkyData, CatalystData, GatekeeperData, MacroMode, SearchReference
 
 
@@ -108,6 +109,7 @@ class Intelligence:
                 print(f"      [Search] No results found for {kpi}")
 
             prompt = f"""
+            Current Date: {datetime.now().strftime('%Y-%m-%d')}
             Based on the search results below, extract the latest value for the KPI: {kpi} for {ticker}.
             If found, provide ONLY the value and a very brief context. It is CRITICAL to include the exact period/timestamp (e.g., "120% (Q3 2024)" or "Value: 10M as of Dec 2024").
             Do NOT include any introductory text or explanations.
@@ -130,6 +132,7 @@ class Intelligence:
         context_mgmt = _collect_refs(res_mgmt)
 
         prompt_mgmt = f"""
+        Current Date: {datetime.now().strftime('%Y-%m-%d')}
         Analyze the management integrity of {ticker} based on:
         {context_mgmt}
 
@@ -153,6 +156,7 @@ class Intelligence:
         context_moat = _collect_refs(res_moat)
 
         prompt_moat = f"""
+        Current Date: {datetime.now().strftime('%Y-%m-%d')}
         Analyze the competitive moat of {ticker} based on:
         {context_moat}
 
@@ -175,6 +179,7 @@ class Intelligence:
         context_insider = _collect_refs(res_insider)
 
         prompt_insider = f"""
+        Current Date: {datetime.now().strftime('%Y-%m-%d')}
         Analyze insider activity for {ticker} based on:
         {context_insider}
 
@@ -198,6 +203,7 @@ class Intelligence:
         context_drop = _collect_refs(res_drop)
 
         prompt_drop = f"""
+        Current Date: {datetime.now().strftime('%Y-%m-%d')}
         Analyze the recent price action of {ticker} based on:
         {context_drop}
 
@@ -271,6 +277,7 @@ class Intelligence:
         
         # Analyze R&D Effectiveness (Second Curve)
         prompt_rnd = f"""
+        Current Date: {datetime.now().strftime('%Y-%m-%d')}
         Analyze the R&D strategy of {ticker} based on:
         {context}
         
@@ -290,6 +297,7 @@ class Intelligence:
         
         # Analyze TAM Expansion
         prompt_tam = f"""
+        Current Date: {datetime.now().strftime('%Y-%m-%d')}
         Analyze the TAM (Total Addressable Market) expansion capability of {ticker} based on:
         {context}
         
@@ -347,6 +355,7 @@ class Intelligence:
         context = _collect_refs(results)
         
         prompt_events = f"""
+        Current Date: {datetime.now().strftime('%Y-%m-%d')}
         List upcoming major events for {ticker} in the next 3-9 months based on:
         {context}
         
@@ -362,6 +371,7 @@ class Intelligence:
         
         # Analyze Catalyst Impact (Narrative)
         prompt_analysis = f"""
+        Current Date: {datetime.now().strftime('%Y-%m-%d')}
         Analyze the strategic impact of these upcoming events for {ticker}:
         {events_text}
         
@@ -389,6 +399,7 @@ class Intelligence:
         context_var = _collect_refs(results_var)
         
         prompt_var = f"""
+        Current Date: {datetime.now().strftime('%Y-%m-%d')}
         Identify any "Variant Perception" for {ticker}.
         Context: {context_var}
         

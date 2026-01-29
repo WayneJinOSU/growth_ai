@@ -1,6 +1,7 @@
 from tavily import TavilyClient
 import config
 import re
+from datetime import datetime
 from typing import List, Dict, Optional
 
 class SearchClient:
@@ -52,6 +53,14 @@ class SearchClient:
         except Exception as e:
             print(f"Treasury Yield Search Error: {e}")
             return None
+
+    def get_recent_years_str(self) -> str:
+        """
+        Returns a string of the current and previous year for search optimization.
+        e.g., "2025 2026"
+        """
+        now = datetime.now()
+        return f"{now.year - 1} {now.year}"
 
     def get_press_releases(self, ticker: str, company_name: str = None, limit: int = 5) -> List[Dict]:
         """

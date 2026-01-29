@@ -12,6 +12,7 @@ Phase 2: The Shadow Audit (影子验证) - V3.5 Singularity
 from tools.search import SearchClient
 from tools.fmp import FMPClient
 from tools.llm import LLMClient
+from datetime import datetime
 from core.data_models import ShadowAuditData, BusinessModel, SearchReference
 
 class ShadowAudit:
@@ -71,6 +72,7 @@ class ShadowAudit:
                 
                 # V3.5 LLM Enhancement for Fake Tech
                 prompt = f"""
+                Current Date: {datetime.now().strftime('%Y-%m-%d')}
                 Analyze if {company_name} ({ticker}) is a "Fake Tech" company based on hiring data:
                 
                 {context}
@@ -127,17 +129,49 @@ class ShadowAudit:
                 context = _collect_refs(results)
                 
                 if results:
-                    king_makers = ["apple", "microsoft", "nvidia", "amazon", "google", "meta", "tesla", "government", "defense"]
+                    # V3.5 LLM-Enhanced King Maker Validation
+                    prompt = f"""
+                    Current Date: {datetime.now().strftime('%Y-%m-%d')}
+                    Identify 'King Maker' clients or partners for {company_name} ({ticker}) based on:
                     
-                    found_kings = [k for k in king_makers if k in context.lower()]
+                    {context}
                     
-                    if found_kings:
-                        data.has_king_maker_clients = True
-                        data.customer_quality_audit = f"King Makers found: {', '.join(found_kings)}"
-                        print(f"      ✓ King Makers: {', '.join(found_kings)}")
-                    else:
-                        data.customer_quality_audit = "No King Makers detected in public search"
-                        print("      No King Makers detected")
+                    King Makers include: Apple, Microsoft, Nvidia, Amazon, Google, Meta, Tesla, or major Government/Defense agencies.
+                    
+                    Task:
+                    1. List the top 3 most significant King Maker names found.
+                    2. For each, explain the nature and significance of the relationship (e.g., "Supplier for X", "Strategic partnership for Y").
+                    
+                    Output Requirements:
+                    - Be concise but specific.
+                    - Use [ID] citations for every claim.
+                    - If no significant relationships are found, reply exactly with "None".
+                    """
+                    
+                    try:
+                        llm_result = self.llm.analyze_text(
+                            prompt, 
+                            system_prompt="You are a strategic business analyst focusing on corporate supply chains and ecosystems.", 
+                            model="google/gemini-2.5-flash"
+                        ).strip()
+                        
+                        if llm_result.lower() != "none" and len(llm_result) > 10:
+                            data.has_king_maker_clients = True
+                            data.customer_quality_audit = llm_result
+                            print(f"      ✓ King Makers: Detailed audit performed")
+                        else:
+                            data.customer_quality_audit = "No King Makers detected in public search"
+                            print("      No King Makers detected")
+                    except Exception as e:
+                        print(f"      [Warning] King Maker LLM audit failed: {e}")
+                        # Fallback to keyword check
+                        king_makers = ["apple", "microsoft", "nvidia", "amazon", "google", "meta", "tesla", "government", "defense"]
+                        found_kings = [k for k in king_makers if k in context.lower()]
+                        if found_kings:
+                            data.has_king_maker_clients = True
+                            data.customer_quality_audit = f"King Makers found (Keyword Check): {', '.join(found_kings)}"
+                        else:
+                            data.customer_quality_audit = "No King Makers detected"
 
         # ========== 3. Path B: Organic Growth Validation ==========
         # 适用于 B2C, Marketplace, App
@@ -191,6 +225,7 @@ class ShadowAudit:
                 
                 # 使用 LLM 分析是否有 Sandbagging 信号
                 prompt = f"""
+                Current Date: {datetime.now().strftime('%Y-%m-%d')}
                 Analyze if {company_name} ({ticker}) management is "sandbagging" (deliberately setting low expectations):
                 
                 {context}

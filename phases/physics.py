@@ -16,6 +16,7 @@ import pandas as pd
 import numpy as np
 from typing import List, Dict, Optional
 from datetime import datetime, timedelta
+from tools.llm import LLMClient
 from tools.fmp import FMPClient
 from core.data_models import PhysicsData
 import config
@@ -25,15 +26,14 @@ class Physics:
     量价物理学引擎
     """
     
-    def __init__(self, fmp_client: FMPClient):
+    def __init__(self, fmp_client: FMPClient, llm_client: Optional[LLMClient] = None):
         self.fmp = fmp_client
+        self.llm = llm_client
 
     def analyze(self, ticker: str) -> PhysicsData:
         print(f"  [Phase 7] Physics VPA Analysis for {ticker} (V3.5 Blue Sky)...")
         
         # 1. Fetch Raw Data (OHLCV)
-        # Need enough data for SMA20 + some buffer (e.g. 60 days to cover weekends/holidays and give ~40 trading days)
-        # Calculate dates
         end_date = datetime.now().strftime("%Y-%m-%d")
         start_date = (datetime.now() - timedelta(days=90)).strftime("%Y-%m-%d")
         
@@ -43,37 +43,39 @@ class Physics:
             print("      [Warning] Insufficient historical data for Physics analysis.")
             return PhysicsData(details="Insufficient Data")
             
-        # Convert to DataFrame for easier calc
-        # FMP returns list of dicts: {'date': '...', 'open': ...}
-        # Sorted by date descending usually? FMP 'historical' is usually new to old.
-        # We need chronological for rolling calc.
-        
         df = pd.DataFrame(raw_data)
-        # Ensure date sorting (Oldest to Newest for calc)
         df['date'] = pd.to_datetime(df['date'])
         df = df.sort_values('date', ascending=True)
         
-        # 2. Calculate Indicators
-        # SMA 20
+        # Base Calculation
+        data = self._calculate_technical_metrics(df)
+        
+        # 4. LLM-Enhanced Analysis (Physical Dynamics)
+        if self.llm:
+            print(f"      [AI] Performing Physical Dynamics analysis with Gemini-3-Pro...")
+            ai_data = self._analyze_with_ai(ticker)
+            if ai_data:
+                data.ai_analysis = ai_data.get('analysis')
+                data.ai_conclusion = ai_data.get('conclusion')
+                data.ai_recommendation = ai_data.get('recommendation')
+                
+                # Align indicators if AI detected specific signals
+                if data.ai_conclusion:
+                    if "Ignition" in data.ai_conclusion: data.is_ignition = True
+                    if "Broken Trend" in data.ai_conclusion: data.is_broken_trend = True
+                    if "Accumulation" in data.ai_conclusion: data.is_accumulation = True
+        
+        return data
+
+    def _calculate_technical_metrics(self, df: pd.DataFrame) -> PhysicsData:
+        # Move existing logic here
         df['sma_20'] = df['close'].rolling(window=20).mean()
-        
-        # Avg Volume 20
         df['vol_ma_20'] = df['volume'].rolling(window=20).mean()
-        
-        # RVol
-        # Avoid division by zero
         df['rvol'] = df.apply(lambda row: row['volume'] / row['vol_ma_20'] if row['vol_ma_20'] > 0 else 1.0, axis=1)
-        
-        # Price Range % (High - Low) / Open
         df['range_pct'] = (df['high'] - df['low']) / df['open']
-        
-        # Close Location (0.0 = Low, 1.0 = High)
         df['close_loc'] = (df['close'] - df['low']) / (df['high'] - df['low'])
         
-        # 3. Analyze Latest Candle (The "Now")
         latest = df.iloc[-1]
-        prev = df.iloc[-2]
-        
         data = PhysicsData()
         data.current_price = latest['close']
         data.sma_20 = latest['sma_20']
@@ -81,44 +83,82 @@ class Physics:
         data.daily_range = latest['range_pct']
         data.close_strength = latest['close_loc']
         
-        print(f"      Price: ${latest['close']:.2f} | SMA20: ${latest['sma_20']:.2f}")
-        print(f"      RVol: {latest['rvol']:.1f}x (Vol: {latest['volume']/1e6:.1f}M)")
-        
-        # ========== Signal Detection ==========
-        
-        # A. Ignition (强力点火)
-        # Rules: Price > SMA20, Breakout (Price > Prev Close?), RVol > 2.0, Strong Close (>0.8)
-        # Also maybe breakout of SMA20? Or just above it.
-        # "股价放量突破 SMA20" -> Cross over? Or just above.
-        # Let's say: Close > SMA20 AND (Close > Prev Close) AND RVol > 2.0 AND CloseLoc > 0.7
+        # Signal Detection
         is_above_sma = latest['close'] > latest['sma_20']
-        is_green = latest['close'] > latest['open'] # or > prev close
+        is_green = latest['close'] > latest['open']
         is_strong_close = latest['close_loc'] > 0.7
         is_high_vol = latest['rvol'] > config.RVOL_IGNITION
         
         if is_above_sma and is_green and is_strong_close and is_high_vol:
             data.is_ignition = True
-            print("      🚀 IGNITION DETECTED (High Vol Breakout)")
-            
-        # B. Accumulation (机构吸筹)
-        # Rules: Range < 2%, RVol > 1.5
+        
         is_tight_range = latest['range_pct'] < config.ACCUMULATION_RANGE_PCT
         is_acc_vol = latest['rvol'] > config.RVOL_ACCUMULATION
-        
         if is_tight_range and is_acc_vol:
             data.is_accumulation = True
-            print("      🔋 ACCUMULATION DETECTED (Quiet Accumulation)")
             
-        # C. Broken Trend (Risk Control)
-        # Rule: Close < SMA20 for 3 consecutive days
-        # Get last 3 rows
         last_3 = df.tail(3)
         below_sma_count = sum(row['close'] < row['sma_20'] for _, row in last_3.iterrows())
         data.days_below_sma20 = below_sma_count
         if below_sma_count >= 3:
             data.is_broken_trend = True
-            print("      ⚠️ BROKEN TREND: Close < SMA20 for 3+ days")
             
         data.details = f"RVol {latest['rvol']:.1f}x | Range {latest['range_pct']*100:.1f}% | Close Strength {latest['close_loc']:.1%}"
-        
         return data
+
+    def _analyze_with_ai(self, ticker: str) -> Optional[Dict]:
+        # Prepare data snippet for LLM
+        # Last 40 days is usually enough for daily chart context
+        end_date = datetime.now().strftime("%Y-%m-%d")
+        start_date = (datetime.now() - timedelta(days=90)).strftime("%Y-%m-%d")
+
+        raw_data = self.fmp.get_historical_price_daily(ticker, from_date=start_date, to_date=end_date)
+
+        prompt = f"""
+        Adopt the perspective of "Physical Dynamics" (Technical Dynamics) to analyze the stock {ticker} based on the following 40-day trading data (JSON format):
+        {raw_data}
+        
+        Analytical Framework:
+        1. Kinematics (Motion Analysis): Trends, speed, acceleration, and momentum.
+        2. Dynamics (Force Analysis): Volume as mass/inertia. Analyze force of buyers vs sellers.
+        3. Statics (Structure Analysis): Support/Resistance levels (the "floor" and "ceiling").
+        4. Energy Conservation (VWAP/Deviation): Over-extension or mean reversion.
+
+        Output Requirements (STRICTLY FOLLOW, START WITH THESE LINES):
+        CONCLUSION: [One of: Ignition, Broken Trend, Accumulation, Divergence, Volatility Trap, Neutral]
+        RECOMMENDATION: [One of: Strong Buy, Buy, Wait, Observe, Sell]
+        ANALYSIS: [Detailed analysis in English using physical metaphors]
+        """
+        
+        try:
+            response = self.llm.analyze_text(prompt, system_prompt="You are a senior technical analyst. Respond strictly in the required format.")
+            
+            ai_data = {}
+            # More robust parsing
+            lines = response.split('\n')
+            for line in lines:
+                upper_line = line.upper()
+                if 'CONCLUSION:' in upper_line:
+                    ai_data['conclusion'] = line.split(':', 1)[1].strip().replace('*', '')
+                elif 'RECOMMENDATION:' in upper_line:
+                    ai_data['recommendation'] = line.split(':', 1)[1].strip().replace('*', '')
+            
+            # Extract analysis part
+            if 'ANALYSIS:' in response:
+                ai_data['analysis'] = response.split('ANALYSIS:', 1)[1].strip()
+            else:
+                ai_data['analysis'] = response
+                
+            return ai_data
+        except Exception as e:
+            print(f"      [Error] AI Physics Analysis failed: {e}")
+            return None
+
+if __name__ == "__main__":
+    fmp = FMPClient()
+    llm = LLMClient()
+    physics = Physics(fmp, llm)
+    print(physics.analyze('AXON'))
+
+
+

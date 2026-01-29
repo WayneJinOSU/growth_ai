@@ -157,8 +157,15 @@ class PhysicsData(BaseModel):
     
     is_accumulation: bool = False  # Range < 2% + RVol > 1.5
     is_ignition: bool = False  # Price > SMA20 + RVol > 2.0 + Strong Close
+    is_high_risk: bool = False  # High Rvol in down days or breakdown
     is_broken_trend: bool = False  # Close < SMA20 for 3+ days
+    
     details: Optional[str] = None
+    
+    # AI Analysis (V3.5 Blue Sky Extension)
+    ai_analysis: Optional[str] = None # Detailed Physical Dynamics Analysis
+    ai_conclusion: Optional[str] = None # Ignition, Broken Trend, Accumulation, etc.
+    ai_recommendation: Optional[str] = None # Strong Buy, Buy, Wait, Observe, etc.
 
 
 class StrategicPricingData(BaseModel):

@@ -15,6 +15,7 @@ V3.5 Blue Sky Edition
 
 from tools.llm import LLMClient
 from tools.search import SearchClient
+from datetime import datetime
 from core.data_models import CatalystData, SearchReference
 
 
@@ -139,6 +140,7 @@ class CatalystsAnalyzer:
              context = "\n".join([r["content"] for r in results if r and "content" in r])
 
         prompt = f"""
+        Current Date: {datetime.now().strftime('%Y-%m-%d')}
         Analyze the macro tailwinds for {ticker} ({company_name or ''}) based on:
         {context}
 
@@ -221,13 +223,19 @@ class CatalystsAnalyzer:
 
         # Extract events
         prompt_events = f"""
-        List upcoming major events for {ticker} in the next 6 months based on:
-        {context}
+        Current Date: {datetime.now().strftime('%Y-%m-%d')}
+        Identify major catalysts for {ticker} from the provided context based on {context}, 
+        categorizing them into:
+        1. **Recently Triggered** (Events within the last 30 days that are still driving price action)
+        2. **Upcoming** (Future events in the next 6 months)
         
         Focus on:
-        - Earnings Dates
+        - Earnings Releases (Past results explaining momentum or future dates)
         - Product Launches / Refresh Cycles
         - Investor Days / Analyst Days
+
+        CRITICAL: The AI should judge the significance. If an event happened 2 weeks ago but was a "game changer", include it as "Recently Triggered". 
+        Focus on 2026 events or high-impact late 2025 milestones that recently concluded.
 
         Return ONLY a simple list, one event per line.
         CRITICAL: Every event MUST include a specific date or estimated quarter (e.g., "Feb 25, 2025" or "Q3 2025").
@@ -252,6 +260,7 @@ class CatalystsAnalyzer:
 
         # Analyze impact
         prompt_analysis = f"""
+        Current Date: {datetime.now().strftime('%Y-%m-%d')}
         Analyze the catalyst impact of these events for {ticker}:
         {events_text}
 
@@ -271,3 +280,26 @@ class CatalystsAnalyzer:
         print(f"      Analysis: {analysis[:100]}...")
 
         return events, analysis
+
+if __name__ == "__main__":
+    from tools.llm import LLMClient
+    from tools.search import SearchClient
+    
+    llm = LLMClient()
+    search = SearchClient()
+    analyzer = CatalystsAnalyzer(llm, search)
+    
+    ticker = "AXON"
+    print(f"Testing Catalysts Analyzer for {ticker}...")
+    result = analyzer.analyze(ticker, company_name="Axon Enterprise")
+    
+    print("\n--- Thematic Waves ---")
+    print(f"Wave: {result.thematic_waves}")
+    print(f"Strength: {result.wave_strength}")
+    
+    print("\n--- Hard Events ---")
+    for event in result.upcoming_events:
+        print(f" - {event}")
+        
+    print("\n--- Analysis ---")
+    print(result.catalyst_analysis)

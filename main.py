@@ -111,7 +111,7 @@ def analyze_ticker_v35(ticker: str, fmp: FMPClient, llm: LLMClient, search: Sear
 
     # ========== Phase 7: Physics (VPA) ==========
     print(f"\n[{ticker}] Phase 7: Physics (VPA)...")
-    physics = Physics(fmp)
+    physics = Physics(fmp, llm)
     data.physics = physics.analyze(ticker)
 
     # ========== Phase 8: Tribunal ==========
@@ -267,6 +267,15 @@ def generate_report_content_v35(data: CompanyData) -> str:
 | 🚀 Ignition | Price > SMA20 + RVol > 2.0 + Strong Close | Momentum Ignition | {"✅ DETECTED" if p.is_ignition else "NOT MET"} |
 | 📉 Broken Trend | Close < SMA20 for 3+ days | Trend Death | {"⚠️ YES" if p.is_broken_trend else "NO"} |
 """
+        
+        if p.ai_analysis:
+            physics_details += f"""
+### 🌌 AI Physical Dynamics Analysis
+**Conclusion:** {p.ai_conclusion}
+**Recommendation:** {p.ai_recommendation}
+
+{p.ai_analysis}
+"""
     
     # Build Macro Valuation
     macro_val = ""
@@ -309,7 +318,7 @@ def generate_report_content_v35(data: CompanyData) -> str:
             if ref.url not in seen_urls:
                 seen_urls.add(ref.url)
                 title = ref.title.replace('\n', ' ').strip()
-                ref_lines.append(f"- [[{ref.id}]] [{title}]({ref.url})")
+                ref_lines.append(f"- [{ref.id}] [{title}]({ref.url})")
         references_md = "\n".join(ref_lines)
     else:
         references_md = "No external references cited."
