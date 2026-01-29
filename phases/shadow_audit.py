@@ -64,7 +64,8 @@ class ShadowAudit:
         # LLM-Enhanced: 如果是真科技公司，应该在招 AI/ML/Engineering 人才
         query_hiring = f"{company_name} {ticker} hiring careers AI engineer machine learning data scientist"
         if self.search:
-            results = self.search.search(query_hiring, max_results=3)
+            # V3.5 Optimize: More results (8) to capture varied job postings
+            results = self.search.search(query_hiring, max_results=8, days=180)
             context = _collect_refs(results)
             if results:
                 
@@ -83,7 +84,8 @@ class ShadowAudit:
                 - "INCONCLUSIVE" (Not enough info)
                 
                 Then add a pipe "|" and a ONE sentence evidence summary. 
-                Example: "REAL_TECH|Hiring 3 Machine Learning Engineers and a CTO [3]."
+                CRITICAL: Mention the timing/recency of these job postings if found (e.g., "posted 2 weeks ago").
+                Example: "REAL_TECH|Hiring 3 Machine Learning Engineers and a CTO (posted Jan 2025) [3]."
                 Use [ID] citations in evidence summary if possible.
                 """
                 
@@ -120,7 +122,8 @@ class ShadowAudit:
             print("    - [Path A] Checking for King Makers...")
             if self.search:
                 query_client = f"{company_name} {ticker} major customers partners Apple Microsoft Nvidia Amazon Google government contract"
-                results = self.search.search(query_client, max_results=3)
+                # V3.5 Optimize: Longer horizon (365 days) and more results (8) for strategic partnerships
+                results = self.search.search(query_client, max_results=8, days=365)
                 context = _collect_refs(results)
                 
                 if results:
@@ -180,9 +183,8 @@ class ShadowAudit:
         # 适用于所有公司
         print("    - Checking for Sandbagging (Conservative Guidance)...")
         if self.search and self.llm:
-            # 搜索最近的 Earnings Guidance / Press Releases
-            query_guidance = f"{company_name} {ticker} earnings guidance outlook conservative beat raise 2024 2025"
-            results = self.search.search(query_guidance, max_results=3)
+            # 使用 get_press_releases 锁定官方源进行沙袋检测 - 增加到 5 条以覆盖更多财报
+            results = self.search.get_press_releases(ticker, company_name=company_name, limit=5)
             context = _collect_refs(results)
             
             if results:
@@ -202,6 +204,8 @@ class ShadowAudit:
                 - "SANDBAGGING_DETECTED" if there's evidence of sandbagging (bullish)
                 - "NO_SANDBAGGING" if guidance seems normal
                 - "INCONCLUSIVE" if unclear
+                
+                CRITICAL: If detected, specify the exact quarters or dates where this behavior was observed.
                 """
                 
                 try:

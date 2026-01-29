@@ -96,10 +96,10 @@ class Intelligence:
         kpi_values = {}
         print(f"    - Verifying {len(identifier_data.specific_kpis)} KPIs...")
         for kpi in identifier_data.specific_kpis:
-            query = f"{ticker} {kpi} latest quarter 2024 2025 financial results"
+            query = f"{ticker} {kpi} latest quarter financial results"
             print(f"      Searching for {kpi}: {query}")
-            search_results = self.search.search(query, max_results=3)
-            search_results = self.search.search(query, max_results=3)
+            # V3.5 Optimize: 3 results/180 days is enough for specific KPI facts
+            search_results = self.search.search(query, max_results=3, days=180)
             context = _collect_refs(search_results)
             
             if search_results:
@@ -109,7 +109,7 @@ class Intelligence:
 
             prompt = f"""
             Based on the search results below, extract the latest value for the KPI: {kpi} for {ticker}.
-            If found, provide ONLY the value and a very brief context (e.g., "120% (Q3 2024)").
+            If found, provide ONLY the value and a very brief context. It is CRITICAL to include the exact period/timestamp (e.g., "120% (Q3 2024)" or "Value: 10M as of Dec 2024").
             Do NOT include any introductory text or explanations.
             Use [ID] citations if applicable.
             If not found, return "Not Found".
@@ -125,8 +125,8 @@ class Intelligence:
 
         # 2. Soft Factors - Management Integrity
         print("    - Analyzing Management Integrity...")
-        query_mgmt = f"{ticker} management guidance track record beat miss history"
-        res_mgmt = self.search.search(query_mgmt, max_results=3)
+        # V3.5 Optimize: More results (5) for better integrity assessment
+        res_mgmt = self.search.get_press_releases(ticker, limit=5)
         context_mgmt = _collect_refs(res_mgmt)
 
         prompt_mgmt = f"""
@@ -137,9 +137,10 @@ class Intelligence:
         
         Output Requirements:
         - Provide a detailed assessment citing specific guidance vs. actual performance examples.
+        - IMPORTANT: Include specific dates or quarters for every example mentioned (e.g., "In Q2 2024, they promised... but by Nov 2024...").
         - Direct answer only. No "Based on..." or "The search results indicate...".
         - Do not limit length; be thorough.
-        - IMPORTANT: Cite sources using [ID] format (e.g. "CEO stated growth is slowing [1]").
+        - Cite sources using [ID] format (e.g. "CEO stated growth is slowing [1]").
         """
         data.management_integrity = self.llm.analyze_text(prompt_mgmt).strip()
         print(f"      Result: {data.management_integrity[:100]}...")
@@ -147,7 +148,8 @@ class Intelligence:
         # 3. Soft Factors - Moat/Competition
         print("    - Analyzing Competitive Moat...")
         query_moat = f"{ticker} competitive advantage moat analysis new products"
-        res_moat = self.search.search(query_moat, max_results=3)
+        # V3.5 Optimize: Deep dive (10 results, 365 days) for moat stability
+        res_moat = self.search.search(query_moat, max_results=10, days=365)
         context_moat = _collect_refs(res_moat)
 
         prompt_moat = f"""
@@ -168,7 +170,8 @@ class Intelligence:
         # 4. Insider Activity
         print("    - Analyzing Insider Activity...")
         query_insider = f"{ticker} insider trading recent selling buying"
-        res_insider = self.search.search(query_insider, max_results=3)
+        # V3.5 Optimize: Medium horizon (90 days) for recent trades
+        res_insider = self.search.search(query_insider, max_results=5, days=90)
         context_insider = _collect_refs(res_insider)
 
         prompt_insider = f"""
@@ -179,9 +182,10 @@ class Intelligence:
         
         Output Requirements:
         - Distinguish between routine options exercise and opportunistic selling/buying.
+        - IMPORTANT: Specify the exact dates or months of the recent transactions.
         - Provide context on volume if available.
         - Direct answer only. No "Based on..." or intro text.
-        - IMPORTANT: Cite sources using [ID] format.
+        - Cite sources using [ID] format.
         """
         data.insider_activity = self.llm.analyze_text(prompt_insider).strip()
         print(f"      Result: {data.insider_activity[:100]}...")
@@ -189,7 +193,8 @@ class Intelligence:
         # 5. Dislocation / Price Action Context
         print("    - Analyzing Price Action Context...")
         query_drop = f"{ticker} stock price drop reason recent news"
-        res_drop = self.search.search(query_drop, max_results=3)
+        # V3.5 Optimize: Very recent (30 days) to find the cause of the dip
+        res_drop = self.search.search(query_drop, max_results=5, days=30)
         context_drop = _collect_refs(res_drop)
 
         prompt_drop = f"""
@@ -200,9 +205,10 @@ class Intelligence:
         
         Output Requirements:
         - Analyze the drivers of price action.
+        - IMPORTANT: Provide a timeline of the price action and key events (e.g., "Dropped 15% on Jan 12th following...").
         - Distinguish macro vs. company-specific issues.
         - Direct answer only. No "Based on..." or intro text.
-        - IMPORTANT: Cite sources using [ID] format.
+        - Cite sources using [ID] format.
         """
         data.dislocation_context = self.llm.analyze_text(prompt_drop).strip()
         print(f"      Result: {data.dislocation_context[:100]}...")
@@ -259,7 +265,8 @@ class Intelligence:
         # Search for R&D and TAM info
         query = f"{ticker} R&D investment areas new product expansion TAM analysis"
         print(f"      Searching for Blue Sky potential: {query}")
-        results = self.search.search(query, max_results=3)
+        # V3.5 Optimize: High depth (10 results/365 days) for strategic growth
+        results = self.search.search(query, max_results=10, days=365)
         context = _collect_refs(results)
         
         # Analyze R&D Effectiveness (Second Curve)
@@ -271,12 +278,12 @@ class Intelligence:
         Do they have a clear "Second Growth Curve"?
         
         Output Requirements:
-        - Include specific projects, investment amounts, and expected ROI/timelines if available.
+        - Include specific projects, investment amounts, and CRITICAL: Include specific target dates or expected launch timelines.
         - Direct analysis only.
         - NO introductory phrases like "Based on the provided text".
         - NO Markdown headers (e.g. ## R&D).
         - Allow multi-paragraph deep dive; do not be overly concise.
-        - IMPORTANT: Cite specific sources using [ID] format (e.g. "R&D budget increased 15% [2]").
+        - Cite specific sources using [ID] format (e.g. "R&D budget increased 15% [2]").
         """
         blue_sky.rnd_effectiveness = self.llm.analyze_text(prompt_rnd).strip()
         print(f"      R&D Effectiveness: {blue_sky.rnd_effectiveness[:100]}...")
@@ -333,9 +340,10 @@ class Intelligence:
             return "\n\n".join(context_parts)
 
         # Search for upcoming events
-        query_events = f"{ticker} upcoming earnings date investor day product launch 2025"
+        query_events = f"{ticker} upcoming earnings date investor day product launch"
         print(f"      Searching for Catalysts: {query_events}")
-        results = self.search.search(query_events, max_results=3)
+        # V3.5 Optimize: 5 results/180 days covers upcoming events well
+        results = self.search.search(query_events, max_results=5, days=180)
         context = _collect_refs(results)
         
         prompt_events = f"""
@@ -376,7 +384,8 @@ class Intelligence:
         # Analyze Variant Perception
         query_var = f"{ticker} wall street consensus vs reality KPI tracking"
         print(f"      Searching for Variant Perception: {query_var}")
-        results_var = self.search.search(query_var, max_results=3)
+        # V3.5 Optimize: 10 results/365 days for unique investor insights
+        results_var = self.search.search(query_var, max_results=10, days=365)
         context_var = _collect_refs(results_var)
         
         prompt_var = f"""

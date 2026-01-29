@@ -127,13 +127,11 @@ class CatalystsAnalyzer:
                 parts.append(f"[{ref.id}] {ref.title}: {r.get('content','')}")
             return "\n\n".join(parts)
 
-        # Search for macro tailwinds
-        query = f"{search_name} macro tailwind industry trend demand driver 2024 2025"
+        # Search for macro tailwinds - removed hardcoded years and duplicates
+        query = f"{search_name} macro tailwind industry trend demand driver recent"
         print(f"      Searching: {query}")
-        # Search for macro tailwinds
-        query = f"{search_name} macro tailwind industry trend demand driver 2024 2025"
-        print(f"      Searching: {query}")
-        results = self.search.search(query, max_results=4)
+        # V3.5 Optimize: 8 results/365 days for industry-wide macro trends
+        results = self.search.search(query, max_results=8, days=365)
         
         if references is not None:
              context = _collect_refs(results)
@@ -187,14 +185,10 @@ class CatalystsAnalyzer:
         return wave, strength
 
     def _identify_hard_events(self, ticker: str, references: list = None) -> tuple[list, str]:
-        """
-        Identify hard catalytic events (earnings, product launches, etc.)
-        """
-        query = f"{ticker} upcoming earnings date investor day product launch 2025 2026"
-        print(f"      Searching: {query}")
-        query = f"{ticker} upcoming earnings date investor day product launch 2025 2026"
-        print(f"      Searching: {query}")
-        results = self.search.search(query, max_results=3)
+        # Identify upcoming hard events - Use get_press_releases for official announcements
+        print(f"      Searching for official announcements...")
+        # V3.5 Optimize: 5 results for more comprehensive event coverage
+        results = self.search.get_press_releases(ticker, limit=5)
         if references is not None:
              def _collect_refs_inner(results):
                 # Re-use logic or just inline simple version since we are inside a method
@@ -236,10 +230,12 @@ class CatalystsAnalyzer:
         - Investor Days / Analyst Days
 
         Return ONLY a simple list, one event per line.
+        CRITICAL: Every event MUST include a specific date or estimated quarter (e.g., "Feb 25, 2025" or "Q3 2025").
+        
         Example:
         - Earnings: Feb 25, 2025 [1]
         - Product Launch: Taser 11 expected Q2 2025 [2]
-        - Investor Day: May 2025
+        - Investor Day: May 2025 [3]
         
         Use [ID] citations if possible.
         """
@@ -265,6 +261,7 @@ class CatalystsAnalyzer:
         Focus on:
         1. Which event is the most critical for stock price?
         2. What is the expected market reaction?
+        3. CRITICAL: Define the specific timeline/window of impact for each major catalyst.
 
         Output: 1-2 paragraphs. Direct analysis only. No headers.
         Use [ID] citations where appropriate.

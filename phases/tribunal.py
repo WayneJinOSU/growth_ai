@@ -194,11 +194,14 @@ class Tribunal:
         """
         
         prompt = f"""
-        Write a 2-3 sentence Executive Summary explaining the investment decision for {data.ticker}.
+        Write a 3-4 sentence Executive Summary explaining the investment decision for {data.ticker}.
         
         {context}
         
-        Be direct. No intro phrases. Start with the key insight.
+        Requirements:
+        1. Be direct. No intro phrases. Start with the key insight.
+        2. CRITICAL: Include the timing context—why is this decision being made NOW? Mention specific upcoming events or recent price action/audit findings with their timeframes.
+        3. Explain the expected duration or critical window for the thesis.
         """
         
         try:

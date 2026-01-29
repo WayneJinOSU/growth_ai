@@ -9,10 +9,10 @@ class LLMClient:
         self.client = OpenAI(base_url="https://openrouter.ai/api/v1",api_key=config.OPENAI_API_KEY)
         self.model = "google/gemini-3-pro-preview" # or gpt-4-turbo
 
-    def analyze_text(self, prompt: str, system_prompt: str = "You are a financial analyst.") -> str:
+    def analyze_text(self, prompt: str, system_prompt: str = "You are a financial analyst.", model= "google/gemini-3-pro-preview") -> str:
         try:
             response = self.client.chat.completions.create(
-                model=self.model,
+                model=model if model else self.model,
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": prompt}
