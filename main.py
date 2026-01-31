@@ -60,12 +60,16 @@ def analyze_ticker_v35(ticker: str, fmp: FMPClient, llm: LLMClient, search: Sear
     gatekeeper = Gatekeeper(fmp, search, yahoo)
     data.gatekeeper = gatekeeper.analyze(ticker)
     
+    is_mega_cap = data.market_cap and data.market_cap > 150_000_000_000
     if not data.gatekeeper.passed:
         print(f"[{ticker}] ❌ Gatekeeper Failed: {data.gatekeeper.fail_reason}")
-        if not force_deep_dive:
+        if is_mega_cap:
+            print(f"[{ticker}] ⚡ Mega Cap detected: Bypassing early exit to continue analysis...")
+        elif not force_deep_dive:
             data.error = f"Gatekeeper Failed: {data.gatekeeper.fail_reason}"
             return data
-        print(f"[{ticker}] Force Mode Active - Proceeding...")
+        else:
+            print(f"[{ticker}] Force Mode Active - Proceeding...")
 
     # ========== Phase 1: Deep Audit & Identity ==========
     print(f"\n[{ticker}] Phase 1: Deep Audit & Identity...")
@@ -80,10 +84,13 @@ def analyze_ticker_v35(ticker: str, fmp: FMPClient, llm: LLMClient, search: Sear
     
     if not data.deep_audit.passed:
         print(f"[{ticker}] ❌ Deep Audit Failed: {data.deep_audit.fail_reason}")
-        if not force_deep_dive:
+        if is_mega_cap:
+            print(f"[{ticker}] ⚡ Mega Cap detected: Bypassing early exit to continue analysis...")
+        elif not force_deep_dive:
              data.error = f"Deep Audit Failed: {data.deep_audit.fail_reason}"
              return data
-        print(f"[{ticker}] Force Mode Active - Proceeding...")
+        else:
+            print(f"[{ticker}] Force Mode Active - Proceeding...")
 
     # ========== Phase 2: Shadow Audit ==========
     print(f"\n[{ticker}] Phase 2: Shadow Audit...")
@@ -423,7 +430,7 @@ def generate_report_content_v35(data: CompanyData) -> str:
 
 def main():
     parser = argparse.ArgumentParser(description="MGP V3.5 Singularity Edition")
-    parser.add_argument("--tickers", type=str, default="AXON", help="Comma-separated tickers")
+    parser.add_argument("--tickers", type=str, default="INTC", help="Comma-separated tickers")
     parser.add_argument("--force", action="store_true", help="Force deep dive")
     parser.add_argument("--scan_mid_cap", default=False,  action="store_true", help="Scan for Mid-Cap (10B-50B) stocks using FMP Screener")
     parser.add_argument("--limit", type=int, default=50, help="Limit number of stocks to analyze from screener")
