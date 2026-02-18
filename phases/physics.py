@@ -26,8 +26,8 @@ class Physics:
     量价物理学引擎
     """
     
-    def __init__(self, fmp_client: FMPClient, llm_client: Optional[LLMClient] = None):
-        self.fmp = fmp_client
+    def __init__(self, fmp_client: FMPClient = None, llm_client: Optional[LLMClient] = None):
+        self.fmp = fmp_client or FMPClient()
         self.llm = llm_client
 
     def analyze(self, ticker: str) -> PhysicsData:
@@ -153,6 +153,8 @@ class Physics:
         except Exception as e:
             print(f"      [Error] AI Physics Analysis failed: {e}")
             return None
+
+physics = Physics()
 
 if __name__ == "__main__":
     fmp = FMPClient()

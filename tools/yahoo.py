@@ -105,3 +105,5 @@ class YahooClient:
             return None
         except:
             return None
+
+yahooClient = YahooClient()

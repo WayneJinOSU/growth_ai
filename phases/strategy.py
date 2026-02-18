@@ -261,3 +261,5 @@ class StrategyAnalyzer:
         print(f"      Strategic Definition: {definition.value}")
 
         return catalyst_strength, valuation_status, definition, instruction
+
+strategyAnalyzer = StrategyAnalyzer()

@@ -43,3 +43,4 @@ class LLMClient:
             print(f"LLM Structure Error: {e}")
             return None
 
+llmClient = LLMClient()

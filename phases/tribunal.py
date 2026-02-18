@@ -29,10 +29,12 @@ class Tribunal:
     最终法庭：MGP V3.5 策略的决策核心
     """
 
-    def __init__(self, llm_client: LLMClient):
-        self.llm = llm_client
+    def __init__(self, llm_client=None, deep_client=None):
+        from tools.deep_search import DeepSearchClient
+        self.llm = llm_client or LLMClient()
+        self.deep = deep_client or DeepSearchClient()
 
-    def judge(self, data: CompanyData, strategic_pricing: StrategicPricingData = None) -> TribunalDecision:
+    def judge(self, data: CompanyData, strategic_pricing: StrategicPricingData = None, deep_search: bool = False) -> TribunalDecision:
         print(f"  [Phase 8] The Final Tribunal for {data.ticker} (V3.5 Blue Sky)...")
         
         # ========== 60-Second Checklist ==========
@@ -108,6 +110,27 @@ class Tribunal:
         else:
             decision = Decision.WATCH
             confidence = Confidence.LOW
+
+        # [Deep Search] Adversarial Review Override
+        if deep_search and decision in [Decision.FIRE, Decision.ACCUMULATE]:
+            print(f"    [Deep Search] Running Adversarial Review (Red Team)...")
+            bullish_thesis = f"Decision: {decision.value}. Growth: {checklist.get('growth_thesis_intact')}. Val: {checklist.get('valuation_fit')}."
+            adv_res = self.deep.adversarial_review(data.ticker, bullish_thesis)
+            
+            if not adv_res['passed']:
+                print(f"    🚩 ADVERSARIAL REVIEW FAILED! Found {len(adv_res['red_flags'])} red flags.")
+                for flag in adv_res['red_flags']:
+                    print(f"       - {flag[:100]}...")
+                
+                # Downgrade decision
+                decision = Decision.WATCH
+                confidence = Confidence.LOW
+                checklist['adversarial_passed'] = False
+                # Add notes for rationale
+                data.tribunal_notes = f"Adversarial Review FAILED: {'; '.join([f[:50] for f in adv_res['red_flags']])}"
+            else:
+                print(f"    ✅ Adversarial Review PASSED. Thesis holds.")
+                checklist['adversarial_passed'] = True
 
         # ========== LLM Rationale ==========
         rationale = self._generate_rationale(data, decision, checklist, strategic_pricing)
@@ -209,3 +232,5 @@ class Tribunal:
             return rationale.strip()[:500]
         except:
             return f"{decision.value} decision based on MGP V3.5 Blue Sky gates analysis."
+
+tribunal = Tribunal()

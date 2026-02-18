@@ -28,9 +28,9 @@ class Gatekeeper:
     MACRO_TIGHT_THRESHOLD = 4.5    # > 4.5% = 紧缩
     VIX_PANIC_THRESHOLD = 30       # > 30 = 市场恐慌
 
-    def __init__(self, fmp_client: FMPClient, search_client: SearchClient, yahoo_client: YahooClient = None):
-        self.fmp = fmp_client
-        self.search = search_client
+    def __init__(self, fmp_client: FMPClient = None, search_client: SearchClient = None, yahoo_client: YahooClient = None):
+        self.fmp = fmp_client or FMPClient()
+        self.search = search_client or SearchClient()
         self.yahoo = yahoo_client or YahooClient()
 
     def _determine_macro_mode(self, us10y: Optional[float]) -> MacroMode:
@@ -140,3 +140,5 @@ class Gatekeeper:
             passed=passed,
             fail_reason=fail_reason
         )
+
+gatekeeper = Gatekeeper()

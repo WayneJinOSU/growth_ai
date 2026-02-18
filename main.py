@@ -33,10 +33,12 @@ from tools.fmp import FMPClient
 from tools.llm import LLMClient
 from tools.search import SearchClient
 from tools.yahoo import YahooClient
+from tools.deep_search import DeepSearchClient
 from core.data_models import CompanyData
+from phases.generate_report import generate_report_content_v35
 
 def analyze_ticker_v35(ticker: str, fmp: FMPClient, llm: LLMClient, search: SearchClient, yahoo: YahooClient,
-                       force_deep_dive: bool = False) -> CompanyData:
+                       deep: DeepSearchClient, force_deep_dive: bool = False, deep_search: bool = False) -> CompanyData:
     
     print(f"\n{'='*60}")
     print(f"  MGP V3.5 Blue Sky Analysis: {ticker}")
@@ -97,16 +99,18 @@ def analyze_ticker_v35(ticker: str, fmp: FMPClient, llm: LLMClient, search: Sear
     shadow = ShadowAudit(search, fmp, llm)
     data.shadow_audit = shadow.audit(ticker, data.company_name, data.identifier.business_model, data.references)
     
-    # ========== Phase 3 & 4: Intelligence & Blue Sky ==========
-    print(f"\n[{ticker}] Phase 3 & 4: Intelligence & Blue Sky...")
-    intel = Intelligence(llm, search, fmp)
-    data.intelligence = intel.gather(ticker, data.identifier, data.gatekeeper, data.references)
+    # ========== Phase 3: Intelligence & Blue Sky ==========
+    print(f"\n[{ticker}] Phase 3: Intelligence & Blue Sky...")
+    
+    # Deep Search Integration in Intelligence
+    # Pass deep_client to Intelligence
+    intel = Intelligence(llm, search, fmp, deep)
+    data.intelligence = intel.gather(ticker, data.identifier, data.gatekeeper, data.references, deep_search=deep_search)
 
     # ========== Phase 5: Catalysts & Waves ==========
     print(f"\n[{ticker}] Phase 5: Catalysts & Waves...")
-    catalysts_analyzer = CatalystsAnalyzer(llm, search)
-    catalyst_data = catalysts_analyzer.analyze(ticker, data.company_name, data.references)
-    # Merge into intelligence.catalysts
+    catalysts_analyzer = CatalystsAnalyzer(llm, search, deep)
+    catalyst_data = catalysts_analyzer.analyze(ticker, data.company_name, data.references, deep_search=deep_search)
     if data.intelligence:
         data.intelligence.catalysts = catalyst_data
 
@@ -133,306 +137,14 @@ def analyze_ticker_v35(ticker: str, fmp: FMPClient, llm: LLMClient, search: Sear
 
     return data
 
-def generate_report_content_v35(data: CompanyData) -> str:
-    """Generate V3.5 Blue Sky Report - Enhanced with detailed analysis"""
-    decision = data.tribunal.decision.value if data.tribunal else "N/A"
-    
-    # Strategic Definition
-    strategic_def = ""
-    if data.strategic_pricing and data.strategic_pricing.strategic_definition:
-        strategic_def = data.strategic_pricing.strategic_definition.value
-    
-    # Physics Icons
-    physics_status = "Neutral"
-    if data.physics:
-        if data.physics.is_ignition:
-            physics_status = "🚀 IGNITION"
-        elif data.physics.is_accumulation:
-            physics_status = "🔋 ACCUMULATION"
-        elif data.physics.is_broken_trend:
-            physics_status = "⚠️ BROKEN TREND"
-    
-    # Build Deep Audit Details
-    deep_audit_details = ""
-    if data.deep_audit:
-        da = data.deep_audit
-        deep_audit_details = f"""
-### Detailed Metrics
-| Metric | Value | Formula/Source |
-|--------|-------|----------------|
-| Revenue CAGR (N-Year) | {f"{da.revenue_cagr_ny:.1%}" if da.revenue_cagr_ny else "N/A"} | (Latest Rev / Oldest Rev)^(1/N) - 1 |
-| Q/Q Revenue Growth | {f"{da.revenue_growth_current_q:.1%}" if da.revenue_growth_current_q else "N/A"} | (Current Q Rev - YoY Q Rev) / YoY Q Rev |
-| SBC / Revenue | {f"{da.sbc_revenue_ratio:.1%}" if da.sbc_revenue_ratio else "N/A"} | TTM SBC / TTM Revenue |
-| Rule of 40 | {f"{da.rule_of_40:.1%}" if da.rule_of_40 else "N/A"} | Rev Growth + FCF Margin |
-| Inventory Health | {da.inventory_health or "N/A"} | Inv Days trend vs Gross Margin |
-| Insider Selling Risk | {"⚠️ YES" if da.insider_selling_risk else "No"} | Yahoo Finance Insider TX |
-"""
-    
-    # Build Shadow Audit Details
-    shadow_audit_details = ""
-    if data.shadow_audit:
-        sa = data.shadow_audit
-        shadow_audit_details = f"""
-### Logic & Evidence
-- **LinkedIn Hiring Audit:** {sa.linkedin_hiring_audit or "Not checked"}
-- **Customer Quality:** {sa.customer_quality_audit or "Not checked"}
-- **Marketing Efficiency:** {sa.marketing_efficiency or "Not checked"}
-- **App Store Rank:** {sa.app_store_rank or "Not checked"}
-- **Sandbagging:** {sa.sandbagging_details or "Not checked"}
-"""
-    
-    # Build Intelligence Details
-    intelligence_details = ""
-    if data.intelligence:
-        intel = data.intelligence
-        intelligence_details = f"""
-### Management Integrity
-{intel.management_integrity or "N/A"}
 
-### Competitive Moat
-{intel.product_moat or "N/A"}
-
-### Insider Activity
-{intel.insider_activity or "N/A"}
-"""
-    
-    # Build Blue Sky Details (Phase 4)
-    blue_sky_details = ""
-    if data.intelligence and data.intelligence.blue_sky:
-        bs = data.intelligence.blue_sky
-        blue_sky_details = f"""
-### TAM Explosion Logic
-{bs.tam_expansion or "N/A"}
-
-### Second Growth Curve (R&D Effectiveness)
-{bs.rnd_effectiveness or "N/A"}
-"""
-
-    # Build Catalysts & Waves Details (Phase 5)
-    catalysts_details = ""
-    if data.intelligence and data.intelligence.catalysts:
-        cat = data.intelligence.catalysts
-        thematic_wave = cat.thematic_waves or "None identified"
-        wave_strength = cat.wave_strength or "N/A"
-        events = ", ".join(cat.upcoming_events) if cat.upcoming_events else "N/A"
-        catalysts_details = f"""
-### Primary: Thematic Wave (全行业势能)
-**Wave:** {thematic_wave}
-**Strength:** {wave_strength}
-
-### Secondary: Hard Events
-**Upcoming Events:** {events}
-
-**Analysis:**
-{cat.catalyst_analysis or "N/A"}
-"""
-
-    # Build Strategic Pricing Details (Phase 6)
-    strategy_details = ""
-    if data.strategic_pricing:
-        sp = data.strategic_pricing
-        strategy_details = f"""
-### Step 1: Valuation Scrub
-{sp.adjustment_reason or "No adjustment"}
-
-### Step 2: Fortress Test (Tier Level)
-**Tier:** {sp.tier_level.value if sp.tier_level else "N/A"}
-**Rationale:** {sp.tier_rationale or "N/A"}
-
-### Step 3: Blue Sky Re-Rating
-**Triggered:** {"✅ Yes (PEG limit relaxed to 2.5)" if sp.blue_sky_triggered else "No"}
-**PEG Limit:** {sp.peg_limit}
-
-### Step 4: Executive Matrix
-| Dimension | Value |
-|-----------|-------|
-| Catalyst Strength | {sp.catalyst_strength or "N/A"} |
-| Valuation Status | {sp.valuation_status or "N/A"} |
-| **Strategic Definition** | **{sp.strategic_definition.value if sp.strategic_definition else "N/A"}** |
-| Action | {sp.action_instruction or "N/A"} |
-"""
-
-    # Build Physics Details (Phase 7)
-    physics_details = ""
-    if data.physics:
-        p = data.physics
-        physics_details = f"""
-### Technical Indicators
-| Indicator | Value | Condition |
-|-----------|-------|-----------|
-| Current Price | ${(p.current_price if p.current_price else 0):.2f} | - |
-| SMA 20 | ${(p.sma_20 if p.sma_20 else 0):.2f} | 生命线 (Life Line) |
-| Relative Volume | {f"{p.relative_volume:.1f}x" if p.relative_volume else "N/A"} | Vol / Avg Vol 20 |
-| Daily Range | {f"{p.daily_range*100:.1f}%" if p.daily_range else "N/A"} | (High - Low) / Close |
-| Close Strength | {f"{p.close_strength:.1%}" if p.close_strength else "N/A"} | (Close - Low) / (High - Low) |
-| Price vs SMA20 | {"Above ✅" if p.current_price and p.sma_20 and p.current_price > p.sma_20 else "Below ⚠️"} | Trend |
-
-### Signal Analysis
-| Form | Feature | Meaning | Status |
-|------|---------|---------|--------|
-| 📦 Accumulation | Range < 2% + RVol > 1.5 | Quiet Accumulation | {"✅ DETECTED" if p.is_accumulation else "NOT MET"} |
-| 🚀 Ignition | Price > SMA20 + RVol > 2.0 + Strong Close | Momentum Ignition | {"✅ DETECTED" if p.is_ignition else "NOT MET"} |
-| 📉 Broken Trend | Close < SMA20 for 3+ days | Trend Death | {"⚠️ YES" if p.is_broken_trend else "NO"} |
-"""
-        
-        if p.ai_analysis:
-            physics_details += f"""
-### 🌌 AI Physical Dynamics Analysis
-**Conclusion:** {p.ai_conclusion}
-**Recommendation:** {p.ai_recommendation}
-
-{p.ai_analysis}
-"""
-    
-    # Build Macro Valuation
-    macro_val = ""
-    if data.intelligence and data.intelligence.kpi_values:
-        macro_val = data.intelligence.kpi_values.get('macro_valuation_analysis', '')
-
-    # Build Tribunal Checklist
-    tribunal_checklist_md = ""
-    if data.tribunal and data.tribunal.checklist_results:
-        checklist = data.tribunal.checklist_results
-        
-        # Define display mapping
-        display_map = {
-            "risk_fuse": "Risk Fuse (VIX < 30)",
-            "audit_passed": "Audit Passed (Deep Audit)",
-            "blue_sky": "Blue Sky Confirmed (Second Curve/TAM)",
-            "strategic_match": "Strategic Match (Tier 1/2 or Cheap)",
-            "wave_resonance": "Wave Resonance (Thematic Wave)",
-            "physical_ignition": "Physical Ignition (Price > SMA20 + RVol)"
-        }
-        
-        checklist_lines = []
-        for k, passed in checklist.items():
-            icon = "✅" if passed else "❌"
-            label = display_map.get(k, k.replace("_", " ").title())
-            checklist_lines.append(f"- [{icon}] **{label}**")
-            
-        tribunal_checklist_md = "\n".join(checklist_lines)
-    else:
-        tribunal_checklist_md = "Checklist data not available."
-
-
-    # Build References Section
-    references_md = ""
-    if data.references:
-        ref_lines = []
-        # Deduplicate by URL
-        seen_urls = set()
-        for ref in data.references:
-            if ref.url not in seen_urls:
-                seen_urls.add(ref.url)
-                title = ref.title.replace('\n', ' ').strip()
-                ref_lines.append(f"- [{ref.id}] [{title}]({ref.url})")
-        references_md = "\n".join(ref_lines)
-    else:
-        references_md = "No external references cited."
-
-
-    content = f"""# MGP V3.5 Blue Sky Report: {data.ticker}
-**Date:** {datetime.now().strftime("%Y-%m-%d")}
-**Verdict:** {decision}
-**Strategic Definition:** {strategic_def or "N/A"}
-**Physics:** {physics_status}
-**Price:** ${(data.current_price if data.current_price else 0):.2f}
-
----
-
-## Executive Summary
-{data.tribunal.rationale if data.tribunal else 'N/A'}
-
----
-
-## Phase 0: The Gatekeeper (门槛熔断)
-- **Macro Mode:** {data.gatekeeper.macro_mode.value if data.gatekeeper else 'N/A'}
-- **US 10Y Yield:** {f"{data.gatekeeper.us10y_yield:.2f}%" if data.gatekeeper and data.gatekeeper.us10y_yield else 'N/A'}
-- **VIX:** {f"{data.gatekeeper.vix_value:.1f}" if data.gatekeeper and data.gatekeeper.vix_value else 'N/A'}
-- **Sector Check:** {'✅ Passed' if data.gatekeeper and data.gatekeeper.sector_check_passed else '❌ Failed'}
-- **Future 20% Rule:** {'✅ Passed' if data.gatekeeper and data.gatekeeper.future_revenue_cagr_3y and data.gatekeeper.future_revenue_cagr_3y > 0.2 else '⚠️ Warning'}
-
----
-
-## Phase 1: Deep Audit (深度审计)
-- **Result:** {'✅ Passed' if data.deep_audit and data.deep_audit.passed else '❌ Failed'}
-- **Fail Reason:** {data.deep_audit.fail_reason if data.deep_audit and data.deep_audit.fail_reason else 'None'}
-{deep_audit_details}
-
----
-
-## Phase 2: Shadow Audit (影子验证)
-- **King Makers:** {'✅ Yes' if data.shadow_audit and data.shadow_audit.has_king_maker_clients else 'No'}
-- **Organic Growth:** {'✅ Confirmed' if data.shadow_audit and data.shadow_audit.organic_growth_confirmed else 'Unconfirmed'}
-- **Fake Tech:** {'⚠️ YES' if data.shadow_audit and data.shadow_audit.is_fake_tech else 'No'}
-{shadow_audit_details}
-
----
-
-## Phase 3: Intelligence (软性情报)
-{intelligence_details}
-
----
-
-## Phase 4: Blue Sky (蓝天展望)
-{blue_sky_details}
-
----
-
-## Phase 5: Catalysts & Waves (势能与催化)
-{catalysts_details}
-
----
-
-## Phase 6: Strategic Pricing (战略定价)
-{strategy_details}
-
----
-
-## Phase 7: Physics VPA (量价物理学)
-- **Signal:** {physics_status}
-{physics_details}
-
----
-
-## Phase 8: Final Tribunal (最终审判)
-
-### 60-Second Checklist
-{tribunal_checklist_md}
-
-### Macro-Adjusted Valuation
-{macro_val or "N/A"}
-
----
-
-## 🔗 References & Sources
-{references_md}
-
----
-
-## 📚 Appendix: Core Terminology
-
-| Term | Definition |
-|------|------------|
-| **CAGR** | Compound Annual Growth Rate (年均复合增长率) |
-| **NDR** | Net Dollar Retention (净收入留存率) |
-| **RPO** | Remaining Performance Obligations (剩余履约义务 - 未来收入) |
-| **PEG** | PE / Growth Rate (市盈率相对盈利增长比率) |
-| **Sandbagging** | Management strategy of hiding real potential (扮猪吃虎) |
-| **Ignition** | Volume-backed breakout (点火 - 伴随巨大成交量的突破) |
-| **SMA20** | 20-Day Simple Moving Average (20日均线 - 生命线) |
-| **RVol** | Relative Volume = Today's Vol / 20-Day Avg Vol |
-
----
-*Generated by MGP V3.5 Blue Sky Engine*
-"""
-    return content
 
 def main():
     parser = argparse.ArgumentParser(description="MGP V3.5 Singularity Edition")
     parser.add_argument("--tickers", type=str, default="INTC", help="Comma-separated tickers")
     parser.add_argument("--force", action="store_true", help="Force deep dive")
     parser.add_argument("--scan_mid_cap", default=False,  action="store_true", help="Scan for Mid-Cap (10B-50B) stocks using FMP Screener")
+    parser.add_argument("--deep_search", "-d", action="store_true", default=False, help="Enable Deep Search Mode (4-module intelligence system)")
     parser.add_argument("--limit", type=int, default=50, help="Limit number of stocks to analyze from screener")
     args = parser.parse_args()
     
@@ -471,9 +183,12 @@ def main():
     
     results = []
     
+    # Singletons
+    deep_client = DeepSearchClient(search, llm)
+    
     for ticker in tickers:
         try:
-            data = analyze_ticker_v35(ticker, fmp, llm, search, yahoo, args.force)
+            data = analyze_ticker_v35(ticker, fmp, llm, search, yahoo, deep_client, args.force, args.deep_search)
             results.append(data.model_dump())
             
             # Save Report

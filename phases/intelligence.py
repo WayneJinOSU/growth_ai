@@ -1,19 +1,21 @@
 """
-Phase 3: Intelligence (情报收集) + Phase 4: Valuation (估值)
-============================================================
-收集软实力指标、蓝天分析、催化剂事件，并进行宏观调整估值。
+Phase 3: Intelligence (情报收集) + Phase 4: Blue Sky & Valuation (蓝天展望 & 估值)
+==================================================================================
+收集软实力指标、蓝天分析，并进行宏观调整估值。
+催化剂分析已移至 phases/catalysts.py (Phase 5)。
 
 核心功能:
-1. Phase 3: Intelligence (KPI 验证, 管理层诚信, 护城河)
-2. Phase 4: Valuation & Catalysts (蓝天分析, 催化剂, 宏观调整估值)
+1. Phase 3: Intelligence (KPI 验证, 管理层诚信, 护城河, 内部人交易, 错杀分析)
+2. Phase 4: Blue Sky & Valuation (R&D/TAM 蓝天分析, 宏观调整估值)
 """
 
 
 from tools.llm import LLMClient
 from tools.search import SearchClient
 from tools.fmp import FMPClient
+from tools.search_helpers import SearchHelper
 from datetime import datetime
-from core.data_models import IntelligenceData, IdentifierData, BlueSkyData, CatalystData, GatekeeperData, MacroMode, SearchReference
+from core.data_models import IntelligenceData, IdentifierData, BlueSkyData, GatekeeperData, MacroMode, SearchReference
 
 
 class Intelligence:
@@ -47,48 +49,46 @@ class Intelligence:
         },
     }
 
-    def __init__(self, llm_client: LLMClient, search_client: SearchClient, fmp_client: FMPClient = None):
-        self.llm = llm_client
-        self.search = search_client
-        self.fmp = fmp_client
+    def __init__(self, llm_client=None, search_client=None, fmp_client=None, deep_client=None):
+        from tools.deep_search import DeepSearchClient
+        self.llm = llm_client or LLMClient()
+        self.search = search_client or SearchClient()
+        self.fmp = fmp_client or FMPClient()
+        self.deep = deep_client or DeepSearchClient()
+        self.sh = SearchHelper(self.search, self.deep)
+
+    # ========== Main Entry ==========
 
     def gather(self, ticker: str, identifier_data: IdentifierData, 
-               gatekeeper_data: GatekeeperData = None, references: list = None) -> IntelligenceData:
+               gatekeeper_data: GatekeeperData = None, references: list = None,
+               deep_search: bool = False) -> IntelligenceData:
         """
         收集 Phase 3 & 4 数据
         """
         data = IntelligenceData()
         if references is None:
             references = []
-
-        def _collect_refs(results):
-            # 1. Deduplicate & Collect
-            new_refs = []
-            for r in results:
-                if r.get('url'):
-                    if not any(ref.url == r['url'] for ref in references):
-                        # Assign new ID
-                        new_id = len(references) + 1
-                        ref = SearchReference(
-                            id=new_id,
-                            title=r.get('title', 'No Title'),
-                            url=r['url'],
-                            snippet=r.get('content', '')[:100] + '...'
-                        )
-                        references.append(ref)
-                        new_refs.append(ref)
-                    else:
-                        # Find existing ref
-                        existing = next(ref for ref in references if ref.url == r['url'])
-                        new_refs.append(existing)
+        
+        # Deep Search Pre-Enrichment (matrix + echo loop for broad financial context)
+        deep_context = ""
+        if deep_search:
+            print("  [Deep Search] Generating Financial Matrix & Echo Loop...")
+            matrix = self.deep.generate_search_matrix(ticker, "", 
+                "查找关键财务指标: Revenue Growth, Net Dollar Retention, CAC, Churn, FCF Margin, 管理层变动")
+            deep_res, deep_ctx = self.deep.execute_matrix(matrix)
+            extracted_gaps, deep_ctx_enriched = self.deep.run_echo_loop(ticker, deep_res)
             
-            # 2. Build Context String with [ID]
-            # Format: "[ID] Title: Content..."
-            context_parts = []
-            for r, ref in zip(results, new_refs):
-                content = r.get('content', '')
-                context_parts.append(f"[{ref.id}] {ref.title}: {content}")
-            return "\n\n".join(context_parts)
+            deep_context = deep_ctx_enriched
+            print(f"  [Deep Search] Enriched Financial Context: {len(deep_context)} chars")
+            
+            for r in deep_res:
+                if not any(ref.url == r.get('url') for ref in references):
+                    references.append(SearchReference(
+                        id=len(references)+1,
+                        title=r.get('title',''),
+                        url=r.get('url',''),
+                        snippet=f"[Deep Search] {r.get('content','')[:100]}..."
+                    ))
 
         # ========== Phase 3: Intelligence (Soft Skills) ==========
         print(f"  [Phase 3] Gathering Intelligence for {ticker}...")
@@ -99,14 +99,18 @@ class Intelligence:
         for kpi in identifier_data.specific_kpis:
             query = f"{ticker} {kpi} latest quarter financial results"
             print(f"      Searching for {kpi}: {query}")
-            # V3.5 Optimize: 3 results/180 days is enough for specific KPI facts
-            search_results = self.search.search(query, max_results=3, days=180)
-            context = _collect_refs(search_results)
+            search_results = self.sh.unified_search(query, max_results=3, days=180, deep_search=deep_search)
+            context = self.sh.collect_refs(search_results, references)
             
             if search_results:
                 print(f"      [Search] Found {len(search_results)} results. Snippet: {search_results[0]['content'][:100]}...")
             else:
                 print(f"      [Search] No results found for {kpi}")
+
+            if deep_context:
+                full_context = f"--- DEEP SEARCH CONTEXT ---\n{deep_context}\n\n--- STANDARD SEARCH RESULTS ---\n{context}"
+            else:
+                full_context = context
 
             prompt = f"""
             Current Date: {datetime.now().strftime('%Y-%m-%d')}
@@ -117,7 +121,7 @@ class Intelligence:
             If not found, return "Not Found".
 
             Search Results:
-            {context}
+            {full_context}
             """
             val = self.llm.analyze_text(prompt, system_prompt="Extract financial data precisely. Direct output only.")
             kpi_values[kpi] = val.strip()
@@ -127,9 +131,8 @@ class Intelligence:
 
         # 2. Soft Factors - Management Integrity
         print("    - Analyzing Management Integrity...")
-        # V3.5 Optimize: More results (5) for better integrity assessment
         res_mgmt = self.search.get_press_releases(ticker, limit=5)
-        context_mgmt = _collect_refs(res_mgmt)
+        context_mgmt = self.sh.collect_refs(res_mgmt, references)
 
         prompt_mgmt = f"""
         Current Date: {datetime.now().strftime('%Y-%m-%d')}
@@ -151,9 +154,8 @@ class Intelligence:
         # 3. Soft Factors - Moat/Competition
         print("    - Analyzing Competitive Moat...")
         query_moat = f"{ticker} competitive advantage moat analysis new products"
-        # V3.5 Optimize: Deep dive (10 results, 365 days) for moat stability
-        res_moat = self.search.search(query_moat, max_results=10, days=365)
-        context_moat = _collect_refs(res_moat)
+        res_moat = self.sh.unified_search(query_moat, max_results=10, days=365, deep_search=deep_search)
+        context_moat = self.sh.collect_refs(res_moat, references)
 
         prompt_moat = f"""
         Current Date: {datetime.now().strftime('%Y-%m-%d')}
@@ -174,9 +176,8 @@ class Intelligence:
         # 4. Insider Activity
         print("    - Analyzing Insider Activity...")
         query_insider = f"{ticker} insider trading recent selling buying"
-        # V3.5 Optimize: Medium horizon (90 days) for recent trades
-        res_insider = self.search.search(query_insider, max_results=5, days=90)
-        context_insider = _collect_refs(res_insider)
+        res_insider = self.sh.unified_search(query_insider, max_results=5, days=90, deep_search=deep_search)
+        context_insider = self.sh.collect_refs(res_insider, references)
 
         prompt_insider = f"""
         Current Date: {datetime.now().strftime('%Y-%m-%d')}
@@ -198,9 +199,8 @@ class Intelligence:
         # 5. Dislocation / Price Action Context
         print("    - Analyzing Price Action Context...")
         query_drop = f"{ticker} stock price drop reason recent news"
-        # V3.5 Optimize: Very recent (30 days) to find the cause of the dip
-        res_drop = self.search.search(query_drop, max_results=5, days=30)
-        context_drop = _collect_refs(res_drop)
+        res_drop = self.sh.unified_search(query_drop, max_results=5, days=30, deep_search=deep_search)
+        context_drop = self.sh.collect_refs(res_drop, references)
 
         prompt_drop = f"""
         Current Date: {datetime.now().strftime('%Y-%m-%d')}
@@ -219,18 +219,14 @@ class Intelligence:
         data.dislocation_context = self.llm.analyze_text(prompt_drop).strip()
         print(f"      Result: {data.dislocation_context[:100]}...")
 
-        # ========== Phase 4: Valuation & Catalysts ==========
-        print(f"  [Phase 4] Analyzing Valuation & Catalysts for {ticker}...")
+        # ========== Phase 4: Blue Sky & Valuation ==========
+        print(f"  [Phase 4] Analyzing Blue Sky & Valuation for {ticker}...")
 
         # 6. Blue Sky Analysis (V3.5) - R&D & TAM
         print("    - Performing Blue Sky Analysis...")
-        data.blue_sky = self._analyze_blue_sky(ticker, references)
+        data.blue_sky = self._analyze_blue_sky(ticker, references, deep_search=deep_search)
 
-        # 7. Catalyst Analysis (V3.5) - Events & Variant Perception
-        print("    - Performing Catalyst Analysis...")
-        data.catalysts = self._analyze_catalysts(ticker, references)
-
-        # 8. [V3.5] Macro-Adjusted Valuation Analysis
+        # 7. [V3.5] Macro-Adjusted Valuation Analysis
         if gatekeeper_data:
             print("    - [V3.5] Calculating Macro-Adjusted Valuation...")
             valuation_analysis = self._analyze_macro_adjusted_valuation(ticker, gatekeeper_data)
@@ -238,42 +234,16 @@ class Intelligence:
 
         return data
 
-    def _analyze_blue_sky(self, ticker: str, references: list) -> BlueSkyData:
-        blue_sky = BlueSkyData()
-        
-        def _collect_refs(results):
-            # 1. Deduplicate & Collect
-            new_refs = []
-            for r in results:
-                if r.get('url'):
-                    if not any(ref.url == r['url'] for ref in references):
-                        # Assign new ID
-                        new_id = len(references) + 1
-                        ref = SearchReference(
-                            id=new_id,
-                            title=r.get('title', 'No Title'),
-                            url=r['url'],
-                            snippet=r.get('content', '')[:100] + '...'
-                        )
-                        references.append(ref)
-                        new_refs.append(ref)
-                    else:
-                        existing = next(ref for ref in references if ref.url == r['url'])
-                        new_refs.append(existing)
-            
-            # 2. Build Context String with [ID]
-            context_parts = []
-            for r, ref in zip(results, new_refs):
-                content = r.get('content', '')
-                context_parts.append(f"[{ref.id}] {ref.title}: {content}")
-            return "\n\n".join(context_parts)
+    # ========== Phase 4 Sub-Modules ==========
 
-        # Search for R&D and TAM info
+    def _analyze_blue_sky(self, ticker: str, references: list,
+                          deep_search: bool = False) -> BlueSkyData:
+        blue_sky = BlueSkyData()
+
         query = f"{ticker} R&D investment areas new product expansion TAM analysis"
         print(f"      Searching for Blue Sky potential: {query}")
-        # V3.5 Optimize: High depth (10 results/365 days) for strategic growth
-        results = self.search.search(query, max_results=10, days=365)
-        context = _collect_refs(results)
+        results = self.sh.unified_search(query, max_results=10, days=365, deep_search=deep_search)
+        context = self.sh.collect_refs(results, references)
         
         # Analyze R&D Effectiveness (Second Curve)
         prompt_rnd = f"""
@@ -316,106 +286,6 @@ class Intelligence:
         print(f"      TAM Expansion: {blue_sky.tam_expansion[:100]}...")
         
         return blue_sky
-
-    def _analyze_catalysts(self, ticker: str, references: list) -> CatalystData:
-        catalyst = CatalystData()
-        
-        def _collect_refs(results):
-            # 1. Deduplicate & Collect
-            new_refs = []
-            for r in results:
-                if r.get('url'):
-                    if not any(ref.url == r['url'] for ref in references):
-                        # Assign new ID
-                        new_id = len(references) + 1
-                        ref = SearchReference(
-                            id=new_id,
-                            title=r.get('title', 'No Title'),
-                            url=r['url'],
-                            snippet=r.get('content', '')[:100] + '...'
-                        )
-                        references.append(ref)
-                        new_refs.append(ref)
-                    else:
-                        existing = next(ref for ref in references if ref.url == r['url'])
-                        new_refs.append(existing)
-            
-            # 2. Build Context String with [ID]
-            context_parts = []
-            for r, ref in zip(results, new_refs):
-                content = r.get('content', '')
-                context_parts.append(f"[{ref.id}] {ref.title}: {content}")
-            return "\n\n".join(context_parts)
-
-        # Search for upcoming events
-        query_events = f"{ticker} upcoming earnings date investor day product launch"
-        print(f"      Searching for Catalysts: {query_events}")
-        # V3.5 Optimize: 5 results/180 days covers upcoming events well
-        results = self.search.search(query_events, max_results=5, days=180)
-        context = _collect_refs(results)
-        
-        prompt_events = f"""
-        Current Date: {datetime.now().strftime('%Y-%m-%d')}
-        List upcoming major events for {ticker} in the next 3-9 months based on:
-        {context}
-        
-        Focus on: Earnings, Investor Days, Product Launches.
-        Return a list of strings, e.g. ["Earnings: Aug 25 [1]", "Investor Day: Oct 10 [2]"].
-        Do NOT include "None" or empty items if possible.
-        Use [ID] citations in the list items if clear.
-        """
-        events_text = self.llm.analyze_text(prompt_events, system_prompt="List specific events. Direct output only.")
-        # Simple split by newline for list, cleaning up
-        catalyst.upcoming_events = [line.strip('- *') for line in events_text.split('\n') if line.strip()]
-        print(f"      Upcoming Events: {catalyst.upcoming_events}")
-        
-        # Analyze Catalyst Impact (Narrative)
-        prompt_analysis = f"""
-        Current Date: {datetime.now().strftime('%Y-%m-%d')}
-        Analyze the strategic impact of these upcoming events for {ticker}:
-        {events_text}
-        
-        Context:
-        {context}
-        
-        Which event is the most critical? What is the expected market reaction?
-        
-        Output Requirements:
-        - Provide a detailed 1-2 paragraph analysis.
-        - Focus on the "So What?" (Implications).
-        - Do NOT just list the dates again; explain their significance.
-        - Direct output only.
-        - IMPORTANT: Cite sources using [ID] format.
-        """
-        catalyst.catalyst_analysis = self.llm.analyze_text(prompt_analysis).strip()
-        print(f"      Catalyst Analysis: {catalyst.catalyst_analysis[:100]}...")
-
-        
-        # Analyze Variant Perception
-        query_var = f"{ticker} wall street consensus vs reality KPI tracking"
-        print(f"      Searching for Variant Perception: {query_var}")
-        # V3.5 Optimize: 10 results/365 days for unique investor insights
-        results_var = self.search.search(query_var, max_results=10, days=365)
-        context_var = _collect_refs(results_var)
-        
-        prompt_var = f"""
-        Current Date: {datetime.now().strftime('%Y-%m-%d')}
-        Identify any "Variant Perception" for {ticker}.
-        Context: {context_var}
-        
-        Is there a gap between Wall Street consensus and alternative data/reality?
-        
-        Output Requirements:
-        - Start directly with the core Variant Perception.
-        - NO "Based on the text".
-        - NO Markdown headers (e.g. ## Variant Perception).
-        - Be provocative but grounded in data.
-        - IMPORTANT: Cite sources using [ID] format.
-        """
-        catalyst.variant_perception = self.llm.analyze_text(prompt_var).strip()
-        print(f"      Variant Perception: {catalyst.variant_perception[:100]}...")
-        
-        return catalyst
 
     # ========== V3.5 Macro-Adjusted Valuation ==========
 
@@ -495,3 +365,5 @@ class Intelligence:
                     analysis_parts.append("\n❌ SELL ZONE: Current price above Bull Case")
         
         return "\n".join(analysis_parts)
+
+intelligence = Intelligence()

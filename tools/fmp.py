@@ -241,6 +241,8 @@ class FMPClient:
         }
         return self._get("news/forex", params=params) or []
 
+fmpClient = FMPClient()
+
 if __name__ == "__main__":
     fMPClient = FMPClient()
     llmClient = LLMClient()

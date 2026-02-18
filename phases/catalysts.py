@@ -11,10 +11,14 @@ V3.5 Blue Sky Edition
 
 2. 二级催化：硬事件 (Hard Events)
    - 财报日、产品换代等具体验证节点
+
+3. 预期差 (Variant Perception)
+   - 华尔街共识 vs 另类数据/现实的偏差
 """
 
 from tools.llm import LLMClient
 from tools.search import SearchClient
+from tools.search_helpers import SearchHelper
 from datetime import datetime
 from core.data_models import CatalystData, SearchReference
 
@@ -53,91 +57,73 @@ class CatalystsAnalyzer:
         },
     }
 
-    def __init__(self, llm_client: LLMClient, search_client: SearchClient):
-        self.llm = llm_client
-        self.search = search_client
+    def __init__(self, llm_client=None, search_client=None, deep_client=None):
+        from tools.deep_search import DeepSearchClient
+        self.llm = llm_client or LLMClient()
+        self.search = search_client or SearchClient()
+        self.deep = deep_client or DeepSearchClient()
+        self.sh = SearchHelper(self.search, self.deep)
 
-    def analyze(self, ticker: str, company_name: str = None, references: list = None) -> CatalystData:
+    # ========== Main Entry ==========
+
+    def analyze(self, ticker: str, company_name: str = None,
+                references: list = None, deep_search: bool = False) -> CatalystData:
         """
-        Analyze Phase 5: Catalysts & Waves
+        Analyze Phase 5: Catalysts & Waves + Variant Perception
         """
         data = CatalystData()
         if references is None:
             references = []
 
-        # ========== Primary: Thematic Waves ==========
-        
-        # Define helper locally to capture references
-        def _collect_refs(results):
-            new_refs = []
-            for r in results:
-                if r.get('url'):
-                    if not any(ref.url == r['url'] for ref in references):
-                        new_id = len(references) + 1
-                        ref = SearchReference(id=new_id, title=r.get('title',''), url=r['url'])
-                        references.append(ref)
-                        new_refs.append(ref)
-                    else:
-                        existing = next(ref for ref in references if ref.url == r['url'])
-                        new_refs.append(existing)
-            
-            parts = []
-            for r, ref in zip(results, new_refs):
-                parts.append(f"[{ref.id}] {ref.title}: {r.get('content','')}")
-            return "\n\n".join(parts)
-
+        # ========== 1. Primary: Thematic Waves ==========
         print(f"    - [Phase 5] Identifying Thematic Waves for {ticker}...")
         data.thematic_waves, data.wave_strength = self._identify_thematic_waves(
-            ticker, company_name, references
+            ticker, company_name, references, deep_search
         )
 
-        # ========== Secondary: Hard Events ==========
+        # ========== 2. Secondary: Hard Events ==========
         print(f"    - [Phase 5] Identifying Hard Events for {ticker}...")
         data.upcoming_events, data.catalyst_analysis = self._identify_hard_events(
-            ticker, references
+            ticker, references, deep_search
+        )
+
+        # ========== 3. Variant Perception ==========
+        print(f"    - [Phase 5] Analyzing Variant Perception for {ticker}...")
+        data.variant_perception = self._analyze_variant_perception(
+            ticker, references, deep_search
         )
 
         return data
 
+    # ========== Sub-Modules ==========
+
     def _identify_thematic_waves(
-        self, ticker: str, company_name: str = None, references: list = None
+        self, ticker: str, company_name: str = None,
+        references: list = None, deep_search: bool = False
     ) -> tuple[str, str]:
         """
         Identify macro thematic waves that the company is riding.
         """
         search_name = company_name or ticker
-        
-        # Helper for this scope if we can't access outer one.
-        # Ideally we'd pass the helper function or move to class method but 
-        # duplicating valid logic is safer for 1-shot tool calls.
-        def _collect_refs(results):
-            if references is None: return ""
-            new_refs = []
-            for r in results:
-                if r.get('url'):
-                    if not any(ref.url == r['url'] for ref in references):
-                        new_id = len(references) + 1
-                        ref = SearchReference(id=new_id, title=r.get('title',''), url=r['url'])
-                        references.append(ref)
-                        new_refs.append(ref)
-                    else:
-                        existing = next(ref for ref in references if ref.url == r['url'])
-                        new_refs.append(existing)
-            parts = []
-            for r, ref in zip(results, new_refs):
-                parts.append(f"[{ref.id}] {ref.title}: {r.get('content','')}")
-            return "\n\n".join(parts)
 
-        # Search for macro tailwinds - removed hardcoded years and duplicates
         query = f"{search_name} macro tailwind industry trend demand driver recent"
+
+        results = []
+        if deep_search:
+            print("    [Deep Search] Generating matrix for Thematic Waves...")
+            matrix = self.deep.generate_search_matrix(ticker, company_name, 
+                "捕捉宏观浪潮(AI/Cloud/EV等) + 行业技术拐点 + 政策利好")
+            deep_res, _ = self.deep.execute_matrix(matrix)
+            results.extend(deep_res)
+
         print(f"      Searching: {query}")
-        # V3.5 Optimize: 8 results/365 days for industry-wide macro trends
-        results = self.search.search(query, max_results=8, days=365)
+        reg_res = self.sh.unified_search(query, max_results=8, days=365, deep_search=deep_search)
+        results.extend(reg_res)
         
         if references is not None:
-             context = _collect_refs(results)
+            context = self.sh.collect_refs(results, references)
         else:
-             context = "\n".join([r["content"] for r in results if r and "content" in r])
+            context = "\n".join([r["content"] for r in results if r and "content" in r])
 
         prompt = f"""
         Current Date: {datetime.now().strftime('%Y-%m-%d')}
@@ -167,7 +153,6 @@ class CatalystsAnalyzer:
         response = self.llm.analyze_text(prompt).strip()
         print(f"      LLM Response: {response[:150]}...")
 
-        # Parse response
         wave = "None"
         strength = "None"
         for line in response.split("\n"):
@@ -180,48 +165,24 @@ class CatalystsAnalyzer:
             wave = None
             strength = None
         else:
-            # Normalize strength
             strength_map = {"high": "High", "medium": "Medium", "low": "Low"}
             strength = strength_map.get(strength.lower(), "Medium")
 
         return wave, strength
 
-    def _identify_hard_events(self, ticker: str, references: list = None) -> tuple[list, str]:
-        # Identify upcoming hard events - Use get_press_releases for official announcements
-        print(f"      Searching for official announcements...")
-        # V3.5 Optimize: 5 results for more comprehensive event coverage
+    def _identify_hard_events(self, ticker: str, references: list = None,
+                              deep_search: bool = False) -> tuple[list, str]:
+        """
+        Identify upcoming hard catalyst events (earnings, product launches, investor days).
+        """
+        print("      Searching for official announcements...")
         results = self.search.get_press_releases(ticker, limit=5)
-        if references is not None:
-             def _collect_refs_inner(results):
-                # Re-use logic or just inline simple version since we are inside a method
-                # Better to use the main _collect_refs via a helper or duplicated for now
-                # Given scope, simpler to just inline the ID logic here again or move to class method
-                # Let's assume we copy the logic from analyze() or make analyze() pass a helper
-                # For expedience in this tool call, I will duplicate the ID logic briefly 
-                # actually I can't access analyze scope. 
-                # Let's adhere to the pattern:
-                new_refs = []
-                for r in results:
-                    if r.get('url'):
-                        if not any(ref.url == r['url'] for ref in references):
-                            new_id = len(references) + 1
-                            ref = SearchReference(id=new_id, title=r.get('title',''), url=r['url'])
-                            references.append(ref)
-                            new_refs.append(ref)
-                        else:
-                            existing = next(ref for ref in references if ref.url == r['url'])
-                            new_refs.append(existing)
-                
-                parts = []
-                for r, ref in zip(results, new_refs):
-                    parts.append(f"[{ref.id}] {ref.title}: {r.get('content','')}")
-                return "\n\n".join(parts)
-             
-             context = _collect_refs_inner(results)
-        else:
-             context = "\n".join([r["content"] for r in results if r and "content" in r])
 
-        # Extract events
+        if references is not None:
+            context = self.sh.collect_refs(results, references)
+        else:
+            context = "\n".join([r["content"] for r in results if r and "content" in r])
+
         prompt_events = f"""
         Current Date: {datetime.now().strftime('%Y-%m-%d')}
         Identify major catalysts for {ticker} from the provided context based on {context}, 
@@ -258,7 +219,6 @@ class CatalystsAnalyzer:
         ]
         print(f"      Events: {events}")
 
-        # Analyze impact
         prompt_analysis = f"""
         Current Date: {datetime.now().strftime('%Y-%m-%d')}
         Analyze the catalyst impact of these events for {ticker}:
@@ -281,6 +241,40 @@ class CatalystsAnalyzer:
 
         return events, analysis
 
+    def _analyze_variant_perception(self, ticker: str, references: list = None,
+                                    deep_search: bool = False) -> str:
+        """
+        Identify gaps between Wall Street consensus and alternative data/reality.
+        Migrated from Intelligence phase — this is a catalyst-class insight.
+        """
+        if references is None:
+            references = []
+
+        query = f"{ticker} wall street consensus vs reality KPI tracking"
+        print(f"      Searching for Variant Perception: {query}")
+        results = self.sh.unified_search(query, max_results=10, days=365, deep_search=deep_search)
+        context = self.sh.collect_refs(results, references)
+
+        prompt = f"""
+        Current Date: {datetime.now().strftime('%Y-%m-%d')}
+        Identify any "Variant Perception" for {ticker}.
+        Context: {context}
+        
+        Is there a gap between Wall Street consensus and alternative data/reality?
+        
+        Output Requirements:
+        - Start directly with the core Variant Perception.
+        - NO "Based on the text".
+        - NO Markdown headers (e.g. ## Variant Perception).
+        - Be provocative but grounded in data.
+        - IMPORTANT: Cite sources using [ID] format.
+        """
+        result = self.llm.analyze_text(prompt).strip()
+        print(f"      Variant Perception: {result[:100]}...")
+        return result
+
+
+catalystsAnalyzer = CatalystsAnalyzer()
 if __name__ == "__main__":
     from tools.llm import LLMClient
     from tools.search import SearchClient
@@ -303,3 +297,6 @@ if __name__ == "__main__":
         
     print("\n--- Analysis ---")
     print(result.catalyst_analysis)
+    
+    print("\n--- Variant Perception ---")
+    print(result.variant_perception)

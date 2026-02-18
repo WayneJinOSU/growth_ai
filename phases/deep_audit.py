@@ -20,9 +20,9 @@ class DeepAudit:
     深度审计器：MGP V3.5 策略的第一道关卡 (原 Iron Gate 升级版)
     """
 
-    def __init__(self, fmp_client: FMPClient, llm_client: LLMClient, yahoo_client: YahooClient = None):
-        self.fmp = fmp_client
-        self.llm = llm_client
+    def __init__(self, fmp_client: FMPClient = None, llm_client: LLMClient = None, yahoo_client: YahooClient = None):
+        self.fmp = fmp_client or FMPClient()
+        self.llm = llm_client or LLMClient()
         self.yahoo = yahoo_client or YahooClient()
 
     def _calculate_cagr(self, start_value: float, end_value: float, years: int) -> float:
@@ -241,3 +241,5 @@ class DeepAudit:
             print(f"    - Deep Audit FAILED: {metrics.fail_reason}")
 
         return metrics
+
+deepAudit = DeepAudit()
