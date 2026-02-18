@@ -11,7 +11,6 @@ __pycache__/
 
 # Byte-compiled / optimized / DLL files
 *.so
-*.md
 # Distribution / packaging
 dist/
 build/
