@@ -160,8 +160,8 @@ class StrategyAnalyzer:
         blue_sky_triggered = False
         peg_limit = self.DEFAULT_PEG_LIMIT
 
-        if data.intelligence and data.intelligence.blue_sky:
-            blue_sky = data.intelligence.blue_sky
+        if data.blue_sky_phase and data.blue_sky_phase.blue_sky:
+            blue_sky = data.blue_sky_phase.blue_sky
             # Check for second curve signals in R&D or TAM text
             rnd_text = (blue_sky.rnd_effectiveness or "").lower()
             tam_text = (blue_sky.tam_expansion or "").lower()
@@ -216,8 +216,8 @@ class StrategyAnalyzer:
                 catalyst_strength = "High"
             elif catalyst_data.wave_strength in ["Medium"] and catalyst_data.upcoming_events:
                 catalyst_strength = "High"
-        elif data.intelligence and data.intelligence.catalysts:
-            cat = data.intelligence.catalysts
+        elif data.catalysts:
+            cat = data.catalysts
             if cat.wave_strength in ["High"]:
                 catalyst_strength = "High"
             elif cat.upcoming_events and len(cat.upcoming_events) >= 2:

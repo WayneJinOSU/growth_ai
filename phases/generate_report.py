@@ -66,8 +66,8 @@ def generate_report_content_v35(data: CompanyData) -> str:
     
     # Build Blue Sky Details (Phase 4)
     blue_sky_details = ""
-    if data.intelligence and data.intelligence.blue_sky:
-        bs = data.intelligence.blue_sky
+    if data.blue_sky_phase and data.blue_sky_phase.blue_sky:
+        bs = data.blue_sky_phase.blue_sky
         blue_sky_details = f"""
 ### TAM Explosion Logic
 {bs.tam_expansion or "N/A"}
@@ -78,8 +78,8 @@ def generate_report_content_v35(data: CompanyData) -> str:
 
     # Build Catalysts & Waves Details (Phase 5)
     catalysts_details = ""
-    if data.intelligence and data.intelligence.catalysts:
-        cat = data.intelligence.catalysts
+    if data.catalysts:
+        cat = data.catalysts
         thematic_wave = cat.thematic_waves or "None identified"
         wave_strength = cat.wave_strength or "N/A"
         events = ", ".join(cat.upcoming_events) if cat.upcoming_events else "N/A"
@@ -154,8 +154,8 @@ def generate_report_content_v35(data: CompanyData) -> str:
     
     # Build Macro Valuation
     macro_val = ""
-    if data.intelligence and data.intelligence.kpi_values:
-        macro_val = data.intelligence.kpi_values.get('macro_valuation_analysis', '')
+    if data.blue_sky_phase and data.blue_sky_phase.macro_valuation_analysis:
+        macro_val = data.blue_sky_phase.macro_valuation_analysis
 
     # Build Tribunal Checklist
     tribunal_checklist_md = ""

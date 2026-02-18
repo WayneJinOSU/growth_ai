@@ -189,16 +189,19 @@ class StrategicPricingData(BaseModel):
     action_instruction: Optional[str] = None
 
 
+class BlueSkyPhaseData(BaseModel):
+    """Phase 4: Blue Sky & Valuation"""
+    blue_sky: Optional[BlueSkyData] = None
+    macro_valuation_analysis: Optional[str] = None
+
+
 class IntelligenceData(BaseModel):
+    """Phase 3: Intelligence (软性情报)"""
     kpi_values: Dict[str, Any] = Field(default_factory=dict)
     management_integrity: Optional[str] = None
     product_moat: Optional[str] = None
     insider_activity: Optional[str] = None
     dislocation_context: Optional[str] = None
-    
-    # V3.2
-    blue_sky: Optional[BlueSkyData] = None
-    catalysts: Optional[CatalystData] = None
 
 
 class TribunalDecision(BaseModel):
@@ -223,6 +226,8 @@ class CompanyData(BaseModel):
     shadow_audit: Optional[ShadowAuditData] = None
     identifier: Optional[IdentifierData] = None
     intelligence: Optional[IntelligenceData] = None
+    blue_sky_phase: Optional[BlueSkyPhaseData] = None  # V3.5 Phase 4
+    catalysts: Optional[CatalystData] = None  # V3.5 Phase 5
     strategic_pricing: Optional[StrategicPricingData] = None  # V3.5 Phase 6
     physics: Optional[PhysicsData] = None  # V3.5 Phase 7
     tribunal: Optional[TribunalDecision] = None

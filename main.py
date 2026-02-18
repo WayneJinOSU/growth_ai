@@ -24,6 +24,7 @@ from phases.gatekeeper import Gatekeeper
 from phases.deep_audit import DeepAudit
 from phases.shadow_audit import ShadowAudit
 from phases.intelligence import Intelligence
+from phases.blue_sky import BlueSkyAnalyzer
 from phases.catalysts import CatalystsAnalyzer
 from phases.strategy import StrategyAnalyzer
 from phases.physics import Physics
@@ -99,20 +100,21 @@ def analyze_ticker_v35(ticker: str, fmp: FMPClient, llm: LLMClient, search: Sear
     shadow = ShadowAudit(search, fmp, llm)
     data.shadow_audit = shadow.audit(ticker, data.company_name, data.identifier.business_model, data.references)
     
-    # ========== Phase 3: Intelligence & Blue Sky ==========
-    print(f"\n[{ticker}] Phase 3: Intelligence & Blue Sky...")
-    
-    # Deep Search Integration in Intelligence
-    # Pass deep_client to Intelligence
-    intel = Intelligence(llm, search, fmp, deep)
-    data.intelligence = intel.gather(ticker, data.identifier, data.gatekeeper, data.references, deep_search=deep_search)
+    # ========== Phase 3: Intelligence ==========
+    print(f"\n[{ticker}] Phase 3: Intelligence...")
+    intel = Intelligence(llm, search, deep)
+    data.intelligence = intel.gather(ticker, data.identifier, data.references, deep_search=deep_search)
+
+    # ========== Phase 4: Blue Sky & Valuation ==========
+    print(f"\n[{ticker}] Phase 4: Blue Sky & Valuation...")
+    blue_sky_analyzer = BlueSkyAnalyzer(llm, search, fmp, deep)
+    data.blue_sky_phase = blue_sky_analyzer.analyze(ticker, data.gatekeeper, data.references, deep_search=deep_search)
 
     # ========== Phase 5: Catalysts & Waves ==========
     print(f"\n[{ticker}] Phase 5: Catalysts & Waves...")
     catalysts_analyzer = CatalystsAnalyzer(llm, search, deep)
     catalyst_data = catalysts_analyzer.analyze(ticker, data.company_name, data.references, deep_search=deep_search)
-    if data.intelligence:
-        data.intelligence.catalysts = catalyst_data
+    data.catalysts = catalyst_data
 
     # ========== Phase 6: Strategic Pricing ==========
     print(f"\n[{ticker}] Phase 6: Strategic Pricing...")

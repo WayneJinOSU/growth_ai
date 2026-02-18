@@ -164,8 +164,8 @@ class Tribunal:
         """Check for second growth curve or TAM expansion"""
         if pricing and pricing.blue_sky_triggered:
             return True
-        if data.intelligence and data.intelligence.blue_sky:
-            bs = data.intelligence.blue_sky
+        if data.blue_sky_phase and data.blue_sky_phase.blue_sky:
+            bs = data.blue_sky_phase.blue_sky
             return bool(bs.rnd_effectiveness or bs.tam_expansion)
         return False
 
@@ -180,8 +180,8 @@ class Tribunal:
 
     def _check_wave_resonance(self, data: CompanyData) -> bool:
         """Check if riding a thematic wave"""
-        if data.intelligence and data.intelligence.catalysts:
-            cat = data.intelligence.catalysts
+        if data.catalysts:
+            cat = data.catalysts
             return cat.wave_strength in ["High", "Medium"]
         return False
 

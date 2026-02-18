@@ -1,0 +1,197 @@
+"""
+Phase 4: Blue Sky & Valuation (蓝天展望 & 估值)
+================================================
+R&D 第二曲线、TAM 扩张分析，以及宏观调整估值。
+
+核心功能:
+1. Blue Sky Analysis: R&D 效能 (Offensive vs Maintenance) + TAM 扩张
+2. Macro-Adjusted Valuation: 根据 MacroMode 动态调整 PE 倍数
+"""
+
+from tools.llm import LLMClient
+from tools.search import SearchClient
+from tools.fmp import FMPClient
+from tools.search_helpers import SearchHelper
+from datetime import datetime
+from core.data_models import BlueSkyPhaseData, BlueSkyData, GatekeeperData, MacroMode
+
+
+class BlueSkyAnalyzer:
+    """
+    Phase 4: 蓝天展望 & 估值分析器
+
+    职责:
+    - R&D 第二增长曲线评估
+    - TAM (Total Addressable Market) 扩张能力
+    - 基于宏观环境 (MacroMode) 的动态估值
+    """
+
+    MACRO_PE_ADJUSTMENTS = {
+        MacroMode.LOOSE: {
+            "bear_pe": 20,
+            "target_pe": 30,
+            "bull_pe": 45,
+            "peg_max": 2.0,
+        },
+        MacroMode.NEUTRAL: {
+            "bear_pe": 18,
+            "target_pe": 25,
+            "bull_pe": 35,
+            "peg_max": 1.5,
+        },
+        MacroMode.TIGHT: {
+            "bear_pe": 15,
+            "target_pe": 20,
+            "bull_pe": 25,
+            "peg_max": 1.2,
+        },
+    }
+
+    def __init__(self, llm_client=None, search_client=None, fmp_client=None, deep_client=None):
+        from tools.deep_search import DeepSearchClient
+        self.llm = llm_client or LLMClient()
+        self.search = search_client or SearchClient()
+        self.fmp = fmp_client or FMPClient()
+        self.deep = deep_client or DeepSearchClient()
+        self.sh = SearchHelper(self.search, self.deep)
+
+    def analyze(self, ticker: str, gatekeeper_data: GatekeeperData = None,
+                references: list = None, deep_search: bool = False) -> BlueSkyPhaseData:
+        """
+        Execute Phase 4: Blue Sky & Valuation
+
+        Args:
+            ticker: 股票代码
+            gatekeeper_data: Phase 0 宏观数据 (用于估值调整)
+            references: 全局引用列表
+            deep_search: 是否启用深度搜索
+        """
+        if references is None:
+            references = []
+
+        data = BlueSkyPhaseData()
+
+        print(f"  [Phase 4] Analyzing Blue Sky & Valuation for {ticker}...")
+
+        # 1. Blue Sky Analysis - R&D & TAM
+        print("    - Performing Blue Sky Analysis...")
+        data.blue_sky = self._analyze_blue_sky(ticker, references, deep_search)
+
+        # 2. Macro-Adjusted Valuation
+        if gatekeeper_data:
+            print("    - [V3.5] Calculating Macro-Adjusted Valuation...")
+            data.macro_valuation_analysis = self._analyze_macro_adjusted_valuation(ticker, gatekeeper_data)
+
+        return data
+
+    def _analyze_blue_sky(self, ticker: str, references: list,
+                          deep_search: bool = False) -> BlueSkyData:
+        blue_sky = BlueSkyData()
+
+        query = f"{ticker} R&D investment areas new product expansion TAM analysis"
+        print(f"      Searching for Blue Sky potential: {query}")
+        results = self.sh.unified_search(query, max_results=10, days=365, deep_search=deep_search)
+        context = self.sh.collect_refs(results, references)
+
+        prompt_rnd = f"""
+        Current Date: {datetime.now().strftime('%Y-%m-%d')}
+        Analyze the R&D strategy of {ticker} based on:
+        {context}
+        
+        Are they investing in "Offensive R&D" (new markets/products like AWS for Amazon) or just maintenance?
+        Do they have a clear "Second Growth Curve"?
+        
+        Output Requirements:
+        - Include specific projects, investment amounts, and CRITICAL: Include specific target dates or expected launch timelines.
+        - Direct analysis only.
+        - NO introductory phrases like "Based on the provided text".
+        - NO Markdown headers (e.g. ## R&D).
+        - Allow multi-paragraph deep dive; do not be overly concise.
+        - Cite specific sources using [ID] format (e.g. "R&D budget increased 15% [2]").
+        """
+        blue_sky.rnd_effectiveness = self.llm.analyze_text(prompt_rnd).strip()
+        print(f"      R&D Effectiveness: {blue_sky.rnd_effectiveness[:100]}...")
+
+        prompt_tam = f"""
+        Current Date: {datetime.now().strftime('%Y-%m-%d')}
+        Analyze the TAM (Total Addressable Market) expansion capability of {ticker} based on:
+        {context}
+        
+        Does the management have a history of successfully crossing into new industries (TAM Expansion)?
+        Is the TAM static or dynamic?
+        
+        Output Requirements:
+        - Provide evidence of TAM expansion (e.g., new geographies, customer segments).
+        - Direct analysis only.
+        - NO introductory phrases.
+        - NO Markdown headers.
+        - Allow multi-paragraph deep dive.
+        - IMPORTANT: Cite sources using [ID] format.
+        """
+        blue_sky.tam_expansion = self.llm.analyze_text(prompt_tam).strip()
+        print(f"      TAM Expansion: {blue_sky.tam_expansion[:100]}...")
+
+        return blue_sky
+
+    def _analyze_macro_adjusted_valuation(self, ticker: str, gatekeeper_data: GatekeeperData) -> str:
+        """
+        根据当前宏观环境 (MacroMode) 调整估值倍数，计算 Bear/Target/Bull Case。
+        """
+        macro_mode = gatekeeper_data.macro_mode
+        us10y = gatekeeper_data.us10y_yield
+        vix = gatekeeper_data.vix_value
+
+        valuation_params = self.MACRO_PE_ADJUSTMENTS.get(macro_mode, self.MACRO_PE_ADJUSTMENTS[MacroMode.NEUTRAL])
+
+        print(f"      Macro Mode: {macro_mode.value}")
+        print(f"      Adjusted PE Parameters: Bear={valuation_params['bear_pe']}x, Target={valuation_params['target_pe']}x, Bull={valuation_params['bull_pe']}x")
+        print(f"      Max Allowed PEG: {valuation_params['peg_max']}")
+
+        current_pe = None
+        current_price = None
+        if self.fmp:
+            quote = self.fmp.get_quote(ticker)
+            ratios = self.fmp.get_ratios_ttm(ticker)
+            if quote:
+                current_price = quote.get('price')
+            if ratios:
+                current_pe = ratios.get('peRatioTTM')
+
+        analysis_parts = []
+        analysis_parts.append(f"Macro Environment: {macro_mode.value} (US10Y: {us10y:.2f}%)" if us10y else f"Macro Environment: {macro_mode.value}")
+        if vix:
+            vix_status = "⚠️ PANIC" if vix > 30 else "Normal"
+            analysis_parts.append(f"VIX: {vix:.1f} ({vix_status})")
+
+        analysis_parts.append("\nValuation Parameters (Macro-Adjusted):")
+        analysis_parts.append(f"  - Bear Case PE: {valuation_params['bear_pe']}x")
+        analysis_parts.append(f"  - Target PE: {valuation_params['target_pe']}x")
+        analysis_parts.append(f"  - Bull Case PE: {valuation_params['bull_pe']}x")
+        analysis_parts.append(f"  - Max Acceptable PEG: {valuation_params['peg_max']}")
+
+        if current_pe and current_price:
+            analysis_parts.append("\nCurrent Valuation:")
+            analysis_parts.append(f"  - Price: ${current_price:.2f}")
+            analysis_parts.append(f"  - PE (TTM): {current_pe:.1f}x")
+
+            if current_pe > 0:
+                eps = current_price / current_pe
+                bear_price = eps * valuation_params['bear_pe']
+                target_price = eps * valuation_params['target_pe']
+                bull_price = eps * valuation_params['bull_pe']
+
+                analysis_parts.append(f"\nImplied Price Targets (Based on EPS ${eps:.2f}):")
+                analysis_parts.append(f"  - Bear Case: ${bear_price:.2f} ({((bear_price/current_price)-1)*100:+.1f}%)")
+                analysis_parts.append(f"  - Target: ${target_price:.2f} ({((target_price/current_price)-1)*100:+.1f}%)")
+                analysis_parts.append(f"  - Bull Case: ${bull_price:.2f} ({((bull_price/current_price)-1)*100:+.1f}%)")
+
+                if current_price < bear_price:
+                    analysis_parts.append("\n✅ STRONG BUY ZONE: Current price below Bear Case")
+                elif current_price < target_price:
+                    analysis_parts.append("\n✓ BUY ZONE: Current price between Bear and Target")
+                elif current_price < bull_price:
+                    analysis_parts.append("\n⚠️ HOLD ZONE: Current price between Target and Bull")
+                else:
+                    analysis_parts.append("\n❌ SELL ZONE: Current price above Bull Case")
+
+        return "\n".join(analysis_parts)
