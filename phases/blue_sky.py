@@ -95,6 +95,12 @@ class BlueSkyAnalyzer:
         results = self.sh.unified_search(query, max_results=10, days=365, deep_search=deep_search)
         context = self.sh.collect_refs(results, references)
 
+        if not context or len(context.strip()) < 50:
+            print("      [Skip] Insufficient data for Blue Sky analysis")
+            blue_sky.rnd_effectiveness = "N/A"
+            blue_sky.tam_expansion = "N/A"
+            return blue_sky
+
         prompt_rnd = f"""
         Current Date: {datetime.now().strftime('%Y-%m-%d')}
         Analyze the R&D strategy of {ticker} based on:
@@ -110,6 +116,7 @@ class BlueSkyAnalyzer:
         - NO Markdown headers (e.g. ## R&D).
         - Allow multi-paragraph deep dive; do not be overly concise.
         - Cite specific sources using [ID] format (e.g. "R&D budget increased 15% [2]").
+        - CRITICAL: If the context lacks specific R&D or product information, output ONLY "N/A". Do not speculate.
         """
         blue_sky.rnd_effectiveness = self.llm.analyze_text(prompt_rnd).strip()
         print(f"      R&D Effectiveness: {blue_sky.rnd_effectiveness[:100]}...")
@@ -129,6 +136,7 @@ class BlueSkyAnalyzer:
         - NO Markdown headers.
         - Allow multi-paragraph deep dive.
         - IMPORTANT: Cite sources using [ID] format.
+        - CRITICAL: If the context lacks specific TAM or market expansion data, output ONLY "N/A". Do not speculate.
         """
         blue_sky.tam_expansion = self.llm.analyze_text(prompt_tam).strip()
         print(f"      TAM Expansion: {blue_sky.tam_expansion[:100]}...")

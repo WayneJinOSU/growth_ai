@@ -12,23 +12,89 @@ Phase 1: The Deep Audit (深度审计) - V3.5 Singularity
 from tools.fmp import FMPClient
 from tools.yahoo import YahooClient
 from tools.llm import LLMClient
+from tools.search import SearchClient
 from core.data_models import DeepAuditData, BusinessModel, IdentifierData
 import config
+import re
 
 class DeepAudit:
     """
     深度审计器：MGP V3.5 策略的第一道关卡 (原 Iron Gate 升级版)
     """
 
-    def __init__(self, fmp_client: FMPClient = None, llm_client: LLMClient = None, yahoo_client: YahooClient = None):
+    def __init__(self, fmp_client: FMPClient = None, llm_client: LLMClient = None,
+                 yahoo_client: YahooClient = None, search_client: SearchClient = None):
         self.fmp = fmp_client or FMPClient()
         self.llm = llm_client or LLMClient()
         self.yahoo = yahoo_client or YahooClient()
+        self.search = search_client or SearchClient()
 
     def _calculate_cagr(self, start_value: float, end_value: float, years: int) -> float:
         if start_value <= 0 or years <= 0:
             return 0.0
         return (end_value / start_value) ** (1 / years) - 1
+
+    def _parse_percentage(self, text: str) -> float | None:
+        """Extract a percentage value from LLM output like '120%' or '1.2x' → 1.20"""
+        if not text or text.strip().upper() == "N/A":
+            return None
+        match = re.search(r'([\d]+(?:\.[\d]+)?)\s*%', text)
+        if match:
+            return float(match.group(1)) / 100.0
+        match = re.search(r'([\d]+(?:\.[\d]+)?)\s*x', text, re.IGNORECASE)
+        if match:
+            return float(match.group(1))
+        try:
+            val = float(re.search(r'[\d]+(?:\.[\d]+)?', text).group())
+            if val > 10:
+                return val / 100.0
+            return val
+        except (AttributeError, ValueError):
+            return None
+
+    def _fetch_specific_metric(self, ticker: str, metric_name: str, keywords: list,
+                               days: int = 90) -> str:
+        """
+        Tavily + LLM: 搜索并提取特定非 GAAP 指标 (NDR, RPO, GMV, Book-to-Bill 等)
+        """
+        kw_str = " ".join(keywords)
+        query = f"{ticker} {metric_name} {kw_str} latest quarter earnings results"
+
+        print(f"      [Tavily] Fetching {metric_name}...")
+        results = self.search.search(query, max_results=5, days=days)
+
+        if not results:
+            print(f"      [Tavily] No results for {metric_name}")
+            return "N/A"
+
+        context = "\n---\n".join([
+            f"[{i+1}] {r.get('title','')}\n{r.get('content','')}"
+            for i, r in enumerate(results)
+        ])[:3000]
+
+        prompt = f"""
+        Based on the search results below for {ticker}, extract the latest value for: {metric_name}.
+        Keywords to look for: {keywords}
+
+        RULES:
+        - Return ONLY the value with its unit and the quarter/date, e.g. "120% (Q3 2025)" or "$1.2B (FY2025)".
+        - If there are two periods available, include both to show the trend, e.g. "115% (Q2) → 120% (Q3 2025)".
+        - If the metric is genuinely not mentioned in the text, return EXACTLY "N/A".
+        - Do NOT speculate or calculate. Only extract explicitly stated numbers.
+
+        Search Results:
+        {context}
+        """
+        try:
+            value = self.llm.analyze_text(
+                prompt, system_prompt="Extract financial metric values precisely. Direct output only."
+            ).strip()
+            if len(value) > 200:
+                value = value[:200]
+            return value
+        except Exception as e:
+            print(f"      [Error] LLM extraction failed for {metric_name}: {e}")
+            return "N/A"
 
     def identify_business_model(self, ticker: str, profile: dict) -> IdentifierData:
         """
@@ -139,8 +205,30 @@ class DeepAudit:
         
         # --- A. SaaS / Cyber / AI Software ---
         if model == BusinessModel.SAAS:
-            # NDR Check (via LLM inference from Earnings Call/Reports usually, here we approximate or skip if no data)
-            pass
+            print("      [SaaS Audit] Extracting NDR & RPO via Tavily...")
+
+            ndr_raw = self._fetch_specific_metric(
+                ticker, "Net Dollar Retention",
+                ["NDR", "net retention", "dollar-based net retention", "DBNR", "net revenue retention"]
+            )
+            ndr_val = self._parse_percentage(ndr_raw)
+            if ndr_val is not None:
+                metrics.ndr = ndr_val
+                status = "✓ Strong" if ndr_val >= config.NDR_THRESHOLD else "⚠️ Weak"
+                print(f"      NDR: {ndr_raw} → {ndr_val:.0%} ({status})")
+            else:
+                print(f"      NDR: {ndr_raw}")
+
+            rpo_raw = self._fetch_specific_metric(
+                ticker, "Remaining Performance Obligations growth",
+                ["RPO", "remaining performance obligations", "backlog", "RPO growth"]
+            )
+            rpo_val = self._parse_percentage(rpo_raw)
+            if rpo_val is not None:
+                metrics.rpo_growth = rpo_val
+                print(f"      RPO Growth: {rpo_raw} → {rpo_val:.0%}")
+            else:
+                print(f"      RPO Growth: {rpo_raw}")
 
         # --- B. Consumption / Usage ---
         # Rule of 40: Rev Growth + FCF Margin
@@ -177,10 +265,41 @@ class DeepAudit:
                      print("      ⚠️ INVENTORY DEATH CROSS DETECTED")
                 else:
                      metrics.inventory_health = "Healthy"
-        
+
+            # Book-to-Bill Ratio (supply/demand signal)
+            print("      [Hardware Audit] Extracting Book-to-Bill via Tavily...")
+            btb_raw = self._fetch_specific_metric(
+                ticker, "Book-to-Bill ratio",
+                ["book-to-bill", "book to bill", "bookings", "new orders", "backlog", "order intake"]
+            )
+            btb_val = self._parse_percentage(btb_raw)
+            if btb_val is not None:
+                metrics.book_to_bill = btb_val
+                status = "✓ Demand > Supply" if btb_val > 1.0 else "⚠️ Supply > Demand"
+                print(f"      Book-to-Bill: {btb_raw} → {btb_val:.2f}x ({status})")
+            else:
+                print(f"      Book-to-Bill: {btb_raw}")
+
         # --- D. Platform / Marketplace ---
         if model == BusinessModel.MARKETPLACE:
-            pass
+            print("      [Marketplace Audit] Extracting Take Rate & GMV via Tavily...")
+
+            take_rate_raw = self._fetch_specific_metric(
+                ticker, "Take Rate trend",
+                ["take rate", "monetization rate", "commission rate", "GMV", "gross merchandise value",
+                 "gross booking value", "GTV"]
+            )
+            if take_rate_raw and take_rate_raw.strip().upper() != "N/A":
+                metrics.take_rate_trend = take_rate_raw
+                tr_lower = take_rate_raw.lower()
+                if ("↑" in tr_lower or "increase" in tr_lower or "grew" in tr_lower) and \
+                   ("↓" in tr_lower or "decline" in tr_lower or "decrease" in tr_lower):
+                    metrics.take_rate_trend = f"⚠️ TAKE RATE TRAP: {take_rate_raw}"
+                    print(f"      ⚠️ Take Rate Trap Signal: {take_rate_raw}")
+                else:
+                    print(f"      Take Rate: {take_rate_raw}")
+            else:
+                print(f"      Take Rate: {take_rate_raw}")
 
         # ========== 4. Universal Lie Detector (V3.5) ==========
         
@@ -242,4 +361,4 @@ class DeepAudit:
 
         return metrics
 
-deepAudit = DeepAudit()
+deepAudit = DeepAudit()  # default clients; main.py passes explicit clients

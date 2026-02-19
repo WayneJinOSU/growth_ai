@@ -76,7 +76,7 @@ def analyze_ticker_v35(ticker: str, fmp: FMPClient, llm: LLMClient, search: Sear
 
     # ========== Phase 1: Deep Audit & Identity ==========
     print(f"\n[{ticker}] Phase 1: Deep Audit & Identity...")
-    deep_audit = DeepAudit(fmp, llm, yahoo)
+    deep_audit = DeepAudit(fmp, llm, yahoo, search)
     
     # 1a. Identity
     data.identifier = deep_audit.identify_business_model(ticker, profile)

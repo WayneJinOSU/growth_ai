@@ -82,6 +82,7 @@ class ShadowAudit:
                 CRITICAL: Mention the timing/recency of these job postings if found (e.g., "posted 2 weeks ago").
                 Example: "REAL_TECH|Hiring 3 Machine Learning Engineers and a CTO (posted Jan 2025) [3]."
                 Use [ID] citations in evidence summary if possible.
+                If the context contains no relevant hiring data, reply exactly: "INCONCLUSIVE|N/A"
                 """
                 
                 try:
@@ -149,8 +150,8 @@ class ShadowAudit:
                 # V3.5 Optimize: Longer horizon (365 days) and more results (8) for strategic partnerships
                 reg_res_km = self.search.search(query_client, max_results=8, days=365)
                 km_results.extend(reg_res_km)
-                 - Use [ID] citations for every claim.
-                    - If no significant relationships are found, reply exactly with "None".
+                    - Use [ID] citations for every claim.
+                    - If no significant relationships are found, reply exactly with "None". Do not explain why, do not speculate.
                     """
                     
                     try:
@@ -246,6 +247,7 @@ class ShadowAudit:
                 - "INCONCLUSIVE" if unclear
                 
                 CRITICAL: If detected, specify the exact quarters or dates where this behavior was observed.
+                If the context lacks specific guidance or earnings data to make a determination, reply "INCONCLUSIVE". Do not speculate.
                 """
                 
                 try:

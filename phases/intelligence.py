@@ -97,13 +97,18 @@ class Intelligence:
             else:
                 full_context = context
 
+            if len(full_context.strip()) < 50:
+                print(f"      [Skip] Insufficient data for {kpi}")
+                kpi_values[kpi] = "Not Found"
+                continue
+
             prompt = f"""
             Current Date: {datetime.now().strftime('%Y-%m-%d')}
             Based on the search results below, extract the latest value for the KPI: {kpi} for {ticker}.
             If found, provide ONLY the value and a very brief context. It is CRITICAL to include the exact period/timestamp (e.g., "120% (Q3 2024)" or "Value: 10M as of Dec 2024").
             Do NOT include any introductory text or explanations.
             Use [ID] citations if applicable.
-            If not found, return "Not Found".
+            If the context lacks specific data for this KPI, return ONLY "Not Found". Do not explain why.
 
             Search Results:
             {full_context}
@@ -120,6 +125,10 @@ class Intelligence:
         res = self.search.get_press_releases(ticker, limit=5)
         context = self.sh.collect_refs(res, references)
 
+        if not context or len(context.strip()) < 50:
+            print("      [Skip] Insufficient data for management analysis")
+            return "N/A"
+
         prompt = f"""
         Current Date: {datetime.now().strftime('%Y-%m-%d')}
         Analyze the management integrity of {ticker} based on:
@@ -133,6 +142,7 @@ class Intelligence:
         - Direct answer only. No "Based on..." or "The search results indicate...".
         - Do not limit length; be thorough.
         - Cite sources using [ID] format (e.g. "CEO stated growth is slowing [1]").
+        - CRITICAL: If the context lacks specific guidance or earnings data, output ONLY "N/A". Do not speculate.
         """
         result = self.llm.analyze_text(prompt).strip()
         print(f"      Result: {result[:100]}...")
@@ -144,6 +154,10 @@ class Intelligence:
         query = f"{ticker} competitive advantage moat analysis new products"
         res = self.sh.unified_search(query, max_results=10, days=365, deep_search=deep_search)
         context = self.sh.collect_refs(res, references)
+
+        if not context or len(context.strip()) < 50:
+            print("      [Skip] Insufficient data for moat analysis")
+            return "N/A"
 
         prompt = f"""
         Current Date: {datetime.now().strftime('%Y-%m-%d')}
@@ -157,6 +171,7 @@ class Intelligence:
         - Use data where possible.
         - Direct answer only. No "Based on..." or intro text.
         - IMPORTANT: Cite sources using [ID] format at the end of claims.
+        - CRITICAL: If the context lacks specific relevant information, output ONLY "N/A". Do not speculate.
         """
         result = self.llm.analyze_text(prompt).strip()
         print(f"      Result: {result[:100]}...")
@@ -168,6 +183,10 @@ class Intelligence:
         query = f"{ticker} insider trading recent selling buying"
         res = self.sh.unified_search(query, max_results=5, days=90, deep_search=deep_search)
         context = self.sh.collect_refs(res, references)
+
+        if not context or len(context.strip()) < 50:
+            print("      [Skip] Insufficient data for insider analysis")
+            return "N/A"
 
         prompt = f"""
         Current Date: {datetime.now().strftime('%Y-%m-%d')}
@@ -182,6 +201,7 @@ class Intelligence:
         - Provide context on volume if available.
         - Direct answer only. No "Based on..." or intro text.
         - Cite sources using [ID] format.
+        - CRITICAL: If the context lacks specific insider transaction data, output ONLY "N/A". Do not speculate.
         """
         result = self.llm.analyze_text(prompt).strip()
         print(f"      Result: {result[:100]}...")
@@ -193,6 +213,10 @@ class Intelligence:
         query = f"{ticker} stock price drop reason recent news"
         res = self.sh.unified_search(query, max_results=5, days=30, deep_search=deep_search)
         context = self.sh.collect_refs(res, references)
+
+        if not context or len(context.strip()) < 50:
+            print("      [Skip] Insufficient data for dislocation analysis")
+            return "N/A"
 
         prompt = f"""
         Current Date: {datetime.now().strftime('%Y-%m-%d')}
@@ -207,6 +231,7 @@ class Intelligence:
         - Distinguish macro vs. company-specific issues.
         - Direct answer only. No "Based on..." or intro text.
         - Cite sources using [ID] format.
+        - CRITICAL: If the context lacks specific price action data, output ONLY "N/A". Do not speculate.
         """
         result = self.llm.analyze_text(prompt).strip()
         print(f"      Result: {result[:100]}...")

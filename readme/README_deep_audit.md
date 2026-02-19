@@ -42,12 +42,14 @@
 | Q/Q Revenue Growth | `(Current Q - YoY Q) / YoY Q` | 季度同比增速 |
 | SBC / Revenue | `TTM SBC / TTM Revenue` | 股权激励稀释度 |
 
-#### 层级 2: 细分领域审计 (V3.5 新增)
+#### 层级 2: 细分领域审计 (V3.5 — Tavily + LLM 提取)
 
-- **SaaS:** NDR (净收入留存率) — 当前为预留接口
+- **SaaS:** NDR (净收入留存率) — 通过 Tavily 搜索最近季度财报/电话会议，LLM 提取 NDR 数值，与 `config.NDR_THRESHOLD` (110%) 比较
+- **SaaS:** RPO Growth (剩余履约义务增速) — 同上路径提取，验证"订单蓄水池"是否在扩大
 - **Consumption/SaaS:** Rule of 40 = `Rev Growth + FCF Margin`
 - **Hardware:** Inventory Death Cross = 库存天数上升 + 毛利率下降
-- **Marketplace:** Take Rate Trend — 当前为预留接口
+- **Hardware:** Book-to-Bill Ratio — 通过 Tavily 搜索 Bookings/Orders 数据，LLM 提取，> 1.0 表示供不应求
+- **Marketplace:** Take Rate Trend — 通过 Tavily 搜索 Take Rate / GMV 数据，LLM 提取并检测"Take Rate Trap"（变现率↑但GMV↓）
 
 #### 层级 3: 全局测谎仪 (Universal Lie Detector)
 
@@ -76,13 +78,15 @@
 外部依赖:
   - FMPClient → Income Statement, Cash Flow, Balance Sheet, Profile
   - YahooClient → Insider Roster
-  - LLMClient → 商业模式分类
+  - LLMClient → 商业模式分类 + 非 GAAP 指标提取
+  - SearchClient (Tavily) → 搜索财报/电话会议文本 (NDR, RPO, Book-to-Bill, Take Rate)
 
 输出:
   - IdentifierData(business_model, specific_kpis, bear_case_hook)
   - DeepAuditData(
       revenue_cagr_ny, revenue_growth_current_q,
       sbc_revenue_ratio, rule_of_40, inventory_health,
+      ndr, rpo_growth, book_to_bill, take_rate_trend,
       insider_selling_risk,
       passed, fail_reason
     )

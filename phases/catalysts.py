@@ -127,6 +127,10 @@ class CatalystsAnalyzer:
         else:
             context = "\n".join([r["content"] for r in results if r and "content" in r])
 
+        if not context or len(context.strip()) < 50:
+            print("      [Skip] Insufficient data for thematic wave analysis")
+            return None, None
+
         prompt = f"""
         Current Date: {datetime.now().strftime('%Y-%m-%d')}
         Analyze the macro tailwinds for {ticker} ({company_name or ''}) based on:
@@ -150,6 +154,12 @@ class CatalystsAnalyzer:
         WAVE: Labor Shortage → AI/Automation Demand
         STRENGTH: High
         RATIONALE: Police departments face chronic staffing shortages; Axon's Draft One AI reduces report writing time by 80%, making it a mission-critical efficiency tool [1].
+
+        CRITICAL: If the context lacks specific evidence of macro tailwinds, output:
+        WAVE: None
+        STRENGTH: None
+        RATIONALE: N/A
+        Do not speculate or fabricate connections.
         """
 
         response = self.llm.analyze_text(prompt).strip()
@@ -185,6 +195,10 @@ class CatalystsAnalyzer:
         else:
             context = "\n".join([r["content"] for r in results if r and "content" in r])
 
+        if not context or len(context.strip()) < 50:
+            print("      [Skip] Insufficient data for hard events analysis")
+            return [], "N/A"
+
         prompt_events = f"""
         Current Date: {datetime.now().strftime('%Y-%m-%d')}
         Identify major catalysts for {ticker} from the provided context based on {context}, 
@@ -209,6 +223,7 @@ class CatalystsAnalyzer:
         - Investor Day: May 2025 [3]
         
         Use [ID] citations if possible.
+        CRITICAL: If the context lacks specific event dates or catalysts, output ONLY "N/A". Do not speculate.
         """
 
         events_text = self.llm.analyze_text(
@@ -236,6 +251,7 @@ class CatalystsAnalyzer:
 
         Output: 1-2 paragraphs. Direct analysis only. No headers.
         Use [ID] citations where appropriate.
+        CRITICAL: If the events lack sufficient detail for meaningful analysis, output ONLY "N/A". Do not speculate.
         """
 
         analysis = self.llm.analyze_text(prompt_analysis).strip()
@@ -257,6 +273,10 @@ class CatalystsAnalyzer:
         results = self.sh.unified_search(query, max_results=10, days=365, deep_search=deep_search)
         context = self.sh.collect_refs(results, references)
 
+        if not context or len(context.strip()) < 50:
+            print("      [Skip] Insufficient data for variant perception analysis")
+            return "N/A"
+
         prompt = f"""
         Current Date: {datetime.now().strftime('%Y-%m-%d')}
         Identify any "Variant Perception" for {ticker}.
@@ -270,6 +290,7 @@ class CatalystsAnalyzer:
         - NO Markdown headers (e.g. ## Variant Perception).
         - Be provocative but grounded in data.
         - IMPORTANT: Cite sources using [ID] format.
+        - CRITICAL: If the context lacks specific data to identify a variant perception, output ONLY "N/A". Do not speculate.
         """
         result = self.llm.analyze_text(prompt).strip()
         print(f"      Variant Perception: {result[:100]}...")
