@@ -85,8 +85,7 @@ class DeepSearchClient:
         search_name = company_name or ticker
         current_date = datetime.now().strftime('%Y-%m-%d')
 
-        prompt = f"""你是一个金融情报指挥官。
-当前任务目标: *"{phase_objective}"*
+        prompt = f"""你是一个金融情报指挥官。当前任务目标: *"{phase_objective}"*
 目标公司: {ticker} ({search_name})
 当前日期: {current_date}
 
