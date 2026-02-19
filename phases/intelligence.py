@@ -33,13 +33,14 @@ class Intelligence:
         self.sh = SearchHelper(self.search, self.deep)
 
     def gather(self, ticker: str, identifier_data: IdentifierData,
-               references: list = None, deep_search: bool = False) -> IntelligenceData:
+               references: list = None, deep_search: bool = False,
+               business_model: str = None) -> IntelligenceData:
         """收集 Phase 3 数据"""
         data = IntelligenceData()
         if references is None:
             references = []
 
-        deep_context = self._deep_enrich(ticker, references) if deep_search else ""
+        deep_context = self._deep_enrich(ticker, references, business_model=business_model) if deep_search else ""
 
         print(f"  [Phase 3] Gathering Intelligence for {ticker}...")
         data.kpi_values = self._verify_kpis(ticker, identifier_data.specific_kpis,
@@ -54,12 +55,12 @@ class Intelligence:
     # Sub-analyses
     # ------------------------------------------------------------------
 
-    def _deep_enrich(self, ticker: str, references: list) -> str:
+    def _deep_enrich(self, ticker: str, references: list, business_model: str = None) -> str:
         """Deep Search pre-enrichment: matrix + echo loop."""
         print("  [Deep Search] Generating Financial Matrix & Echo Loop...")
         matrix = self.deep.generate_search_matrix(ticker, "",
             "查找关键财务指标: Revenue Growth, Net Dollar Retention, CAC, Churn, FCF Margin, 管理层变动")
-        deep_res, deep_ctx = self.deep.execute_matrix(matrix)
+        deep_res, deep_ctx = self.deep.execute_matrix(matrix, business_model=business_model)
         _, deep_ctx_enriched = self.deep.run_echo_loop(ticker, deep_res)
 
         print(f"  [Deep Search] Enriched Financial Context: {len(deep_ctx_enriched)} chars")

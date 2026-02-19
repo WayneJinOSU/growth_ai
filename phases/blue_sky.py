@@ -56,7 +56,8 @@ class BlueSkyAnalyzer:
         self.sh = SearchHelper(self.search, self.deep)
 
     def analyze(self, ticker: str, gatekeeper_data: GatekeeperData = None,
-                references: list = None, deep_search: bool = False) -> BlueSkyPhaseData:
+                references: list = None, deep_search: bool = False,
+                business_model: str = None) -> BlueSkyPhaseData:
         """
         Execute Phase 4: Blue Sky & Valuation
 
@@ -65,6 +66,7 @@ class BlueSkyAnalyzer:
             gatekeeper_data: Phase 0 宏观数据 (用于估值调整)
             references: 全局引用列表
             deep_search: 是否启用深度搜索
+            business_model: 商业模式字符串 (预留, 供未来 deep search 域名叠加)
         """
         if references is None:
             references = []

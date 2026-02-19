@@ -24,9 +24,11 @@ DeepSearchClient
 
 ---
 
-## 域名情报分组 (Domain Groups)
+## 域名双维度体系
 
-搜索不是随便搜，而是根据情报类型锁定特定域名：
+搜索域名由两个正交维度控制，在执行时**取并集**叠加：
+
+### 维度 1: 情报意图 (`DOMAIN_GROUPS`) — "想找什么性质的信息"
 
 | 分组 | 域名 | 适用场景 |
 |------|------|---------|
@@ -35,6 +37,30 @@ DeepSearchClient
 | `EXPERT_INTEL` | stackoverflow.com, github.com, ycombinator.com | 技术实力、开源贡献、行业讨论 |
 | `SHORT_SELLER` | muddywatersresearch.com, citronresearch.com, seekingalpha.com | 做空报告、负面分析 |
 | `LEGAL` | sec.gov, law360.com, reuters.com, justice.gov | 法律诉讼、SEC 调查 |
+
+### 维度 2: 商业模式 (`DOMAIN_BY_MODEL`) — "该类公司的硬证据在哪"
+
+| 商业模式 | 域名 | 适用场景 |
+|---------|------|---------|
+| `SaaS` | g2.com, gartner.com, trustradius.com | 企业软件评测、行业报告 |
+| `Consumption` | aws.amazon.com, azuremarketplace.microsoft.com, cloud.google.com | 云市场上架情况、用量定价 |
+| `Marketplace` | trustpilot.com, reddit.com | 卖家/买家真实评价 |
+| `Advertising` | business.tiktok.com | 广告主工具、CPM 趋势 |
+| `Hardware` | fccid.io, ifixit.com, digikey.com | FCC 认证、拆解报告、元器件供应 |
+| `Gov_B2G` | sam.gov, fpds.gov, usaspending.gov, ted.europa.eu | 政府合同、采购记录 |
+
+### 叠加逻辑
+
+`execute_matrix` 接受可选的 `business_model` 参数。执行搜索时：
+
+```
+最终域名 = DOMAIN_GROUPS[intent_group] ∪ DOMAIN_BY_MODEL[business_model]
+```
+
+例如，对一家 SaaS 公司搜索 `SOFT_INTEL`：
+- 基础域名: reddit.com, teamblind.com, glassdoor.com, trustradius.com
+- 叠加 SaaS: g2.com, gartner.com
+- 最终: reddit.com, teamblind.com, glassdoor.com, trustradius.com, g2.com, gartner.com
 
 ---
 
@@ -68,16 +94,17 @@ DeepSearchClient
 
 ### Module 2: Execution (执行模块)
 
-**入口:** `execute_matrix(matrix)`
+**入口:** `execute_matrix(matrix, business_model=None)`
 
 **逻辑:**
 1. 遍历矩阵中的每条搜索指令
-2. 根据 `domain_group` 获取对应的域名列表
-3. 调用 Tavily `search_depth="advanced"` + `include_domains` 进行域名锁定搜索
-4. 每条指令最多返回 4 条结果
-5. 按 URL 去重
-6. 为每条结果标记 `source_group` 和原始 `query`
-7. 生成带 `[ID]` 编号的格式化上下文字符串 (供 LLM 后续使用)
+2. 根据 `domain_group` 获取情报意图域名列表
+3. 如果传入了 `business_model`，将对应的行业域名叠加 (取并集)
+4. 调用 Tavily `search_depth="advanced"` + `include_domains` 进行域名锁定搜索
+5. 每条指令最多返回 4 条结果
+6. 按 URL 去重
+7. 为每条结果标记 `source_group` 和原始 `query`
+8. 生成带 `[ID]` 编号的格式化上下文字符串 (供 LLM 后续使用)
 
 **Fallback:** Tavily 域名锁定失败时，降级为通用搜索。
 
@@ -183,8 +210,8 @@ deep = DeepSearchClient()
 # 1. 生成搜索矩阵
 matrix = deep.generate_search_matrix("INTC", "Intel", "验证假科技和造王者客户")
 
-# 2. 执行搜索
-results, context = deep.execute_matrix(matrix)
+# 2. 执行搜索 (传入 business_model 叠加行业专属域名)
+results, context = deep.execute_matrix(matrix, business_model="Hardware")
 
 # 3. Echo Loop 补漏 (Phase 3 专用)
 extracted, enriched_context = deep.run_echo_loop("INTC", results)

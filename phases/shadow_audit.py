@@ -30,10 +30,12 @@ class ShadowAudit:
         self.deep = deep_client or DeepSearchClient()
         self.sh = SearchHelper(self.search, self.deep)
 
-    def audit(self, ticker: str, company_name: str, business_model: BusinessModel, references: list = None, deep_search: bool = False) -> ShadowAuditData:
+    def audit(self, ticker: str, company_name: str, business_model: BusinessModel,
+              references: list = None, deep_search: bool = False) -> ShadowAuditData:
         print(f"  [Phase 2] Shadow Audit for {ticker} (V3.5)...")
         
         data = ShadowAuditData()
+        bm_value = business_model.value if business_model else None
         if references is None:
             references = []
 
@@ -50,7 +52,7 @@ class ShadowAudit:
             print("    [Deep Search] generating matrix for Fake Tech & Hiring...")
             matrix = self.deep.generate_search_matrix(ticker, company_name, 
                 "验证假科技(招聘真实性) + 研发团队规模 + 核心技术壁垒")
-            deep_res, _ = self.deep.execute_matrix(matrix)
+            deep_res, _ = self.deep.execute_matrix(matrix, business_model=bm_value)
             hiring_results.extend(deep_res)
 
         if self.search:
@@ -122,7 +124,7 @@ class ShadowAudit:
                 print("    [Deep Search] generating matrix for King Makers...")
                 matrix_km = self.deep.generate_search_matrix(ticker, company_name, 
                     "验证造王者大客户(Apple/Nvidia/Microsoft/Gov) + 供应链关系")
-                deep_res_km, _ = self.deep.execute_matrix(matrix_km)
+                deep_res_km, _ = self.deep.execute_matrix(matrix_km, business_model=bm_value)
                 km_results.extend(deep_res_km)
 
             if self.search:

@@ -95,25 +95,27 @@ def analyze_ticker_v35(ticker: str, fmp: FMPClient, llm: LLMClient, search: Sear
         else:
             print(f"[{ticker}] Force Mode Active - Proceeding...")
 
+    bm_value = data.identifier.business_model.value if data.identifier else None
+
     # ========== Phase 2: Shadow Audit ==========
     print(f"\n[{ticker}] Phase 2: Shadow Audit...")
     shadow = ShadowAudit(search, fmp, llm)
-    data.shadow_audit = shadow.audit(ticker, data.company_name, data.identifier.business_model, data.references)
+    data.shadow_audit = shadow.audit(ticker, data.company_name, data.identifier.business_model, data.references, deep_search=deep_search)
     
     # ========== Phase 3: Intelligence ==========
     print(f"\n[{ticker}] Phase 3: Intelligence...")
     intel = Intelligence(llm, search, deep)
-    data.intelligence = intel.gather(ticker, data.identifier, data.references, deep_search=deep_search)
+    data.intelligence = intel.gather(ticker, data.identifier, data.references, deep_search=deep_search, business_model=bm_value)
 
     # ========== Phase 4: Blue Sky & Valuation ==========
     print(f"\n[{ticker}] Phase 4: Blue Sky & Valuation...")
     blue_sky_analyzer = BlueSkyAnalyzer(llm, search, fmp, deep)
-    data.blue_sky_phase = blue_sky_analyzer.analyze(ticker, data.gatekeeper, data.references, deep_search=deep_search)
+    data.blue_sky_phase = blue_sky_analyzer.analyze(ticker, data.gatekeeper, data.references, deep_search=deep_search, business_model=bm_value)
 
     # ========== Phase 5: Catalysts & Waves ==========
     print(f"\n[{ticker}] Phase 5: Catalysts & Waves...")
     catalysts_analyzer = CatalystsAnalyzer(llm, search, deep)
-    catalyst_data = catalysts_analyzer.analyze(ticker, data.company_name, data.references, deep_search=deep_search)
+    catalyst_data = catalysts_analyzer.analyze(ticker, data.company_name, data.references, deep_search=deep_search, business_model=bm_value)
     data.catalysts = catalyst_data
 
     # ========== Phase 6: Strategic Pricing ==========

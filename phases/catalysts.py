@@ -67,7 +67,8 @@ class CatalystsAnalyzer:
     # ========== Main Entry ==========
 
     def analyze(self, ticker: str, company_name: str = None,
-                references: list = None, deep_search: bool = False) -> CatalystData:
+                references: list = None, deep_search: bool = False,
+                business_model: str = None) -> CatalystData:
         """
         Analyze Phase 5: Catalysts & Waves + Variant Perception
         """
@@ -78,7 +79,7 @@ class CatalystsAnalyzer:
         # ========== 1. Primary: Thematic Waves ==========
         print(f"    - [Phase 5] Identifying Thematic Waves for {ticker}...")
         data.thematic_waves, data.wave_strength = self._identify_thematic_waves(
-            ticker, company_name, references, deep_search
+            ticker, company_name, references, deep_search, business_model
         )
 
         # ========== 2. Secondary: Hard Events ==========
@@ -99,7 +100,8 @@ class CatalystsAnalyzer:
 
     def _identify_thematic_waves(
         self, ticker: str, company_name: str = None,
-        references: list = None, deep_search: bool = False
+        references: list = None, deep_search: bool = False,
+        business_model: str = None
     ) -> tuple[str, str]:
         """
         Identify macro thematic waves that the company is riding.
@@ -113,7 +115,7 @@ class CatalystsAnalyzer:
             print("    [Deep Search] Generating matrix for Thematic Waves...")
             matrix = self.deep.generate_search_matrix(ticker, company_name, 
                 "捕捉宏观浪潮(AI/Cloud/EV等) + 行业技术拐点 + 政策利好")
-            deep_res, _ = self.deep.execute_matrix(matrix)
+            deep_res, _ = self.deep.execute_matrix(matrix, business_model=business_model)
             results.extend(deep_res)
 
         print(f"      Searching: {query}")

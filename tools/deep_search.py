@@ -14,8 +14,8 @@ Phase 专项化版本：由各 Phase 按需调用，提供定制化搜索矩阵�
     deep = DeepSearchClient()
     # 1. 生成矩阵
     matrix = deep.generate_search_matrix("INTC", "Intel", "验证假科技和造王者客户")
-    # 2. 执行搜索
-    results, context = deep.execute_matrix(matrix)
+    # 2. 执行搜索 (可选: 传入 business_model 叠加行业专属域名)
+    results, context = deep.execute_matrix(matrix, business_model="Hardware")
 """
 
 import json
@@ -25,12 +25,23 @@ from datetime import datetime
 
 # ===================== Constants =====================
 
+# 按情报意图分组 (搜索什么性质的信息)
 DOMAIN_GROUPS = {
     "HARD_INTEL": ["sec.gov", "annualreports.com", "investor.*"],
     "SOFT_INTEL": ["reddit.com", "teamblind.com", "glassdoor.com", "trustradius.com"],
     "EXPERT_INTEL": ["stackoverflow.com", "github.com", "ycombinator.com"],
     "SHORT_SELLER": ["muddywatersresearch.com", "citronresearch.com", "seekingalpha.com"],
     "LEGAL": ["sec.gov", "law360.com", "reuters.com", "justice.gov"],
+}
+
+# 按商业模式分组 (该类公司的"硬证据"站点)
+DOMAIN_BY_MODEL = {
+    "SaaS": ["g2.com", "gartner.com", "trustradius.com"],
+    "Consumption": ["aws.amazon.com", "azuremarketplace.microsoft.com", "cloud.google.com"],
+    "Marketplace": ["trustpilot.com", "reddit.com"],
+    "Advertising": ["business.tiktok.com"],
+    "Hardware": ["fccid.io", "ifixit.com", "digikey.com"],
+    "Gov_B2G": ["sam.gov", "fpds.gov", "usaspending.gov", "ted.europa.eu"],
 }
 
 # Davis Protocol 必填字段 Checklist (Phase 3 专用)
@@ -128,15 +139,22 @@ Domain Groups:
     # Module 2: Execution (执行 & 格式化)
     # =====================================================================
 
-    def execute_matrix(self, matrix: List[Dict]) -> Tuple[List[Dict], str]:
+    def execute_matrix(self, matrix: List[Dict], business_model: str = None) -> Tuple[List[Dict], str]:
         """
         执行搜索矩阵，并返回结果列表和格式化后的上下文。
+
+        Args:
+            matrix: 搜索指令矩阵
+            business_model: 商业模式 (来自 BusinessModel.value)，用于叠加行业专属域名
         
         Returns:
             results: List[Dict] (包含 url, title, content)
             context: str (带 [ID] 的文本，用于 LLM)
         """
         print(f"  💥 [Deep Search] Executing {len(matrix)} queries...")
+        model_domains = DOMAIN_BY_MODEL.get(business_model, []) if business_model else []
+        if model_domains:
+            print(f"    📎 Business model '{business_model}' → +{len(model_domains)} evidence domains")
         all_results = []
         
         for directive in matrix:
@@ -145,8 +163,9 @@ Domain Groups:
             
             print(f"    🔍 {group}: {query[:50]}...")
             
-            # 使用 Tavily 锁定域名
-            domains = DOMAIN_GROUPS.get(group)
+            # 情报意图域名 + 商业模式域名取并集
+            intent_domains = DOMAIN_GROUPS.get(group, [])
+            domains = list(set(intent_domains + model_domains)) if intent_domains else model_domains or None
             try:
                 raw_res = self.search.client.search(
                     query, 
