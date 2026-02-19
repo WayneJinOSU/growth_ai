@@ -111,26 +111,24 @@ class Tribunal:
             decision = Decision.WATCH
             confidence = Confidence.LOW
 
-        # [Deep Search] Adversarial Review Override
-        if deep_search and decision in [Decision.FIRE, Decision.ACCUMULATE]:
-            print(f"    [Deep Search] Running Adversarial Review (Red Team)...")
-            bullish_thesis = f"Decision: {decision.value}. Growth: {checklist.get('growth_thesis_intact')}. Val: {checklist.get('valuation_fit')}."
-            adv_res = self.deep.adversarial_review(data.ticker, bullish_thesis)
-            
-            if not adv_res['passed']:
-                print(f"    🚩 ADVERSARIAL REVIEW FAILED! Found {len(adv_res['red_flags'])} red flags.")
-                for flag in adv_res['red_flags']:
-                    print(f"       - {flag[:100]}...")
-                
-                # Downgrade decision
-                decision = Decision.WATCH
-                confidence = Confidence.LOW
-                checklist['adversarial_passed'] = False
-                # Add notes for rationale
-                data.tribunal_notes = f"Adversarial Review FAILED: {'; '.join([f[:50] for f in adv_res['red_flags']])}"
-            else:
-                print(f"    ✅ Adversarial Review PASSED. Thesis holds.")
-                checklist['adversarial_passed'] = True
+        # TODO: 红蓝对抗 (Adversarial Review) — 暂未启用，待设计完善后开放
+        # if deep_search and decision in [Decision.FIRE, Decision.ACCUMULATE]:
+        #     print(f"    [Deep Search] Running Adversarial Review (Red Team)...")
+        #     bullish_thesis = f"Decision: {decision.value}. Growth: {checklist.get('growth_thesis_intact')}. Val: {checklist.get('valuation_fit')}."
+        #     adv_res = self.deep.adversarial_review(data.ticker, bullish_thesis)
+        #
+        #     if not adv_res['passed']:
+        #         print(f"    🚩 ADVERSARIAL REVIEW FAILED! Found {len(adv_res['red_flags'])} red flags.")
+        #         for flag in adv_res['red_flags']:
+        #             print(f"       - {flag[:100]}...")
+        #
+        #         decision = Decision.WATCH
+        #         confidence = Confidence.LOW
+        #         checklist['adversarial_passed'] = False
+        #         data.tribunal_notes = f"Adversarial Review FAILED: {'; '.join([f[:50] for f in adv_res['red_flags']])}"
+        #     else:
+        #         print(f"    ✅ Adversarial Review PASSED. Thesis holds.")
+        #         checklist['adversarial_passed'] = True
 
         # ========== LLM Rationale ==========
         rationale = self._generate_rationale(data, decision, checklist, strategic_pricing)
