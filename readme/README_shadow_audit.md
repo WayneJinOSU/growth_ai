@@ -42,16 +42,17 @@
 
 **输出:** `has_king_maker_clients` (bool), `customer_quality_audit` (str)
 
-### 模块 3: Organic Growth Validation (自然增长验证) — Path B
+### 模块 3: Organic Growth Validation (自然增长验证) — Path B (V3.5 增强)
 
-**适用范围:** B2C / Marketplace / Advertising
+**适用范围:** B2C / Marketplace / Advertising / **SaaS** (V3.5 新增)
 
 **逻辑:**
 1. 拉取 3 年年度 Income Statement
 2. 计算 S&M (Sales & Marketing) 占营收比例的变化趋势：
    - S&M% 持平或下降 + 营收增长 → `organic_growth_confirmed = True`
-   - S&M% 上升 → 增长是"买来的"，不可持续
-3. 补充检查 App Store 排名 (搜索模拟)
+   - S&M% 上升 → 进入 SaaS 豁免检查
+3. **V3.5 SaaS 效率豁免：** 对于 SaaS 公司，如果 S&M 绝对支出增加但**营收增速 > S&M 增速**，视为"高效扩张"而非"买来的增长"
+4. 补充检查 App Store 排名 (搜索模拟)
 
 **输出:** `organic_growth_confirmed` (bool), `marketing_efficiency` (str)
 
@@ -77,7 +78,7 @@
          → 模块 4 (Sandbagging)
 
 B2B/SaaS/HW → 模块 2 (King Makers) — Path A
-B2C/Marketplace → 模块 3 (Organic Growth) — Path B
+B2C/Marketplace/SaaS → 模块 3 (Organic Growth) — Path B  # V3.5: SaaS 同时走 Path A + B
 ```
 
 ---
@@ -116,6 +117,6 @@ B2C/Marketplace → 模块 3 (Organic Growth) — Path B
 ```
 
 Shadow Audit 不设硬性 Pass/Fail，但其输出直接影响：
-- Phase 6 (Strategy): `has_king_maker_clients` 决定 Tier 1 vs Tier 2
+- Phase 6 (Strategy): `has_king_maker_clients` (B2B) 或 `organic_growth_confirmed` + `app_store_rank` (B2C) 决定 Tier 1 vs Tier 2/3
 - Phase 6 (Strategy): `sandbagging_detected` 触发估值折价
 - Phase 8 (Tribunal): `is_fake_tech` 可能导致降级

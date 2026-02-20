@@ -180,8 +180,8 @@ class ShadowAudit:
                             data.customer_quality_audit = "No King Makers detected"
 
         # ========== 3. Path B: Organic Growth Validation ==========
-        # 适用于 B2C, Marketplace, App
-        if business_model in [BusinessModel.MARKETPLACE, BusinessModel.ADVERTISING, BusinessModel.OTHER]:
+        # 适用于 B2C, Marketplace, App (V3.5+ B2B SaaS exception)
+        if business_model in [BusinessModel.MARKETPLACE, BusinessModel.ADVERTISING, BusinessModel.OTHER, BusinessModel.SAAS]:
             print("    - [Path B] Checking for Organic Growth (S&M Efficiency)...")
             income = self.fmp.get_income_statement(ticker, period='annual', limit=3)
             
@@ -197,10 +197,22 @@ class ShadowAudit:
                 print(f"      S&M % Rev: {sm_ratio_prev:.1%} -> {sm_ratio_curr:.1%}")
                 
                 # 判定：S&M% 下降或持平 (+1%容忍)，且营收增长 -> 自然增长
-                # 如果 S&M% 暴涨，说明增长是买来的
+                # V3.5 Mid-Large B2B SaaS Exception: 
+                # If S&M absolute spending increases, verify if Revenue growth rate > S&M growth rate
                 sm_trend = f"S&M moved {sm_ratio_prev:.1%} -> {sm_ratio_curr:.1%}"
                 
+                sm_growth_rate = (sm_curr - sm_prev) / sm_prev if sm_prev > 0 else 0
+                rev_growth_rate = (rev_curr - rev_prev) / rev_prev if rev_prev > 0 else 0
+                
+                is_efficient = False
+                
                 if sm_ratio_curr <= (sm_ratio_prev + 0.01) and rev_curr > rev_prev:
+                    is_efficient = True
+                elif business_model == BusinessModel.SAAS and rev_growth_rate > sm_growth_rate:
+                    is_efficient = True
+                    sm_trend += f" (SAAS Exception: Rev Growth {rev_growth_rate:.1%} > S&M Growth {sm_growth_rate:.1%})"
+                
+                if is_efficient:
                     data.organic_growth_confirmed = True
                     data.marketing_efficiency = f"Efficient (Organic): {sm_trend} with growing revenue"
                     print("      ✓ Organic Growth Confirmed")

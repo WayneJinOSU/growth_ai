@@ -21,6 +21,7 @@ from core.data_models import (
     DeepAuditData,
     CatalystData,
     IntelligenceData,
+    BusinessModel,
 )
 
 
@@ -125,24 +126,44 @@ class StrategyAnalyzer:
         """
         Step 2: Fortress Test (Tier Level)
 
-        Tier 1: Phase 1 passed + Phase 2 King Makers
+        Tier 1 (B2B): Phase 1 passed + King Makers
+        Tier 1 (B2C/Platform): Phase 1 passed + Organic Growth + App Store Dominance
         Tier 2: Phase 1 passed only
         Tier 3: Did not pass Phase 1 or weak signals
         """
         # Check Phase 1 (Deep Audit)
         phase1_passed = data.deep_audit and data.deep_audit.passed
 
-        # Check Phase 2 (Shadow Audit - King Makers)
+        # Check Phase 2 (Shadow Audit)
         has_king_makers = (
             data.shadow_audit and data.shadow_audit.has_king_maker_clients
         )
+        has_organic_growth = (
+            data.shadow_audit and data.shadow_audit.organic_growth_confirmed
+        )
+        has_app_store_dominance = False
+        if data.shadow_audit and data.shadow_audit.app_store_rank:
+            rank_text = data.shadow_audit.app_store_rank.lower()
+            if "high ranking" in rank_text or "dominance" in rank_text:
+                has_app_store_dominance = True
 
-        if phase1_passed and has_king_makers:
+        # Evaluate Strong Moat based on business model archetype
+        has_strong_moat = False
+        moat_rationale = ""
+        
+        if has_king_makers:
+            has_strong_moat = True
+            moat_rationale = "King Maker clients confirmed (B2B/Hardware Moat)"
+        elif has_organic_growth and has_app_store_dominance:
+            has_strong_moat = True
+            moat_rationale = "Organic Growth + App Store Dominance confirmed (B2C/Platform Moat)"
+
+        if phase1_passed and has_strong_moat:
             tier = TierLevel.TIER_1
-            rationale = "Phase 1 (Deep Audit) passed + King Maker clients confirmed"
+            rationale = f"Phase 1 (Deep Audit) passed + {moat_rationale}"
         elif phase1_passed:
             tier = TierLevel.TIER_2
-            rationale = "Phase 1 (Deep Audit) passed, but no King Maker clients"
+            rationale = "Phase 1 (Deep Audit) passed, but lacks strong moat signals"
         else:
             tier = TierLevel.TIER_3
             rationale = "Phase 1 (Deep Audit) failed or weak fundamental signals"
@@ -154,34 +175,14 @@ class StrategyAnalyzer:
         """
         Step 3: Blue Sky Re-Rating
 
-        If a strong second growth curve exists (>50% growth, >10% of revenue),
+        If a strong second growth curve exists (determined by the LLM in Phase 4),
         allow PEG limit to expand from 2.0 to 2.5.
         """
         blue_sky_triggered = False
         peg_limit = self.DEFAULT_PEG_LIMIT
 
         if data.blue_sky_phase and data.blue_sky_phase.blue_sky:
-            blue_sky = data.blue_sky_phase.blue_sky
-            # Check for second curve signals in R&D or TAM text
-            rnd_text = (blue_sky.rnd_effectiveness or "").lower()
-            tam_text = (blue_sky.tam_expansion or "").lower()
-
-            # Heuristic: look for strong growth indicators
-            growth_indicators = [
-                "50%",
-                "100%",
-                "doubling",
-                "triple",
-                "explosive",
-                "breakthrough",
-                "new segment",
-                "second curve",
-                "tam expansion",
-            ]
-            for indicator in growth_indicators:
-                if indicator in rnd_text or indicator in tam_text:
-                    blue_sky_triggered = True
-                    break
+            blue_sky_triggered = data.blue_sky_phase.blue_sky.is_strong_second_curve
 
         if blue_sky_triggered:
             peg_limit = self.BLUE_SKY_PEG_LIMIT
@@ -229,6 +230,12 @@ class StrategyAnalyzer:
             peg = data.deep_audit.peg_ratio
             if peg and peg > pricing.peg_limit:
                 valuation_status = "Red"
+                
+            # V3.5 SaaS Rule of 40 Exemption against PEG metrics
+            if data.identifier and data.identifier.business_model in [BusinessModel.SAAS, BusinessModel.CONSUMPTION]:
+                if data.deep_audit.rule_of_40 and data.deep_audit.rule_of_40 >= 0.50:
+                    valuation_status = "Green"
+                    print("      ✓ Valuation Exemption: High Rule of 40 (>50%) overrides PEG limit")
 
         # Tier Level
         tier = pricing.tier_level or TierLevel.TIER_3
@@ -237,9 +244,12 @@ class StrategyAnalyzer:
         definition = None
         instruction = None
 
-        if catalyst_strength == "High" and valuation_status == "Green":
+        if catalyst_strength == "High" and valuation_status == "Green" and tier == TierLevel.TIER_1:
             definition = StrategicDefinition.DIAMOND_SETUP
             instruction = "💎 Perfect strike zone. Aggressive Buy."
+        elif catalyst_strength == "High" and valuation_status == "Green" and tier != TierLevel.TIER_1:
+            definition = StrategicDefinition.MOMENTUM_RIDE
+            instruction = "🚀 Catalyst overrides lack of moat. Momentum play only."
         elif catalyst_strength == "High" and valuation_status == "Red":
             definition = StrategicDefinition.MOMENTUM_RIDE
             instruction = "🚀 Momentum overrides valuation. Right-side chase. Use Phase 7 for entry."

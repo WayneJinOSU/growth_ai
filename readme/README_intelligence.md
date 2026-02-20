@@ -53,16 +53,17 @@
 
 **输出:** `insider_activity` (str) — 内部人行为分析
 
-### 5. 价格错杀判别 (`_analyze_dislocation`)
+### 5. 价格错杀判别 (`_analyze_dislocation`) — V3.5 结构化标签
 
 **逻辑:**
 1. 搜索: `{ticker} stock price drop reason recent news` (30 天内)
 2. LLM 判断下跌是**真折价 (True Discount)** 还是**假折价 (Fake Discount)**:
    - True Discount: 宏观因素 / 板块轮动导致 → 买入机会
    - Fake Discount: 基本面恶化 / 竞争对手威胁 → 陷阱
-3. 要求提供价格变动时间线
+3. **V3.5 新增：** LLM 被强制要求在输出开头标注 `[DISCOUNT_TYPE: TRUE_DISCOUNT]` 或 `[DISCOUNT_TYPE: FAKE_DISCOUNT]`，供 Phase 8 Tribunal 程序化解析
+4. 要求提供价格变动时间线
 
-**输出:** `dislocation_context` (str)
+**输出:** `dislocation_context` (str) — 包含结构化标签 + 分析文本
 
 ---
 

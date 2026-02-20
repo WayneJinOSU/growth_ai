@@ -34,13 +34,15 @@
 
 分为四个审计层级：
 
-#### 层级 1: 历史增长 & 财务卫生 (Legacy Iron Gate)
+#### 层级 1: 历史增长 & 财务卫生 (V3.5 Enhanced)
 
 | 指标 | 计算方式 | 说明 |
 |------|---------|------|
 | Revenue CAGR (N-Year) | `(Latest / Oldest)^(1/N) - 1` | 年化复合增长率 |
+| **EPS CAGR (N-Year)** | 同上，基于 EPS | V3.5 新增：盈利杠杆验证 |
 | Q/Q Revenue Growth | `(Current Q - YoY Q) / YoY Q` | 季度同比增速 |
-| SBC / Revenue | `TTM SBC / TTM Revenue` | 股权激励稀释度 |
+| **Net Dilution** | `(今年 weightedAverageShsOutDil - 去年) / 去年` | V3.5：用 FMP 真实股本替代 SBC 绝对值，>5% 触发红旗 |
+| SBC / Revenue (Fallback) | `TTM SBC / TTM Revenue` | 仅当股本数据不可用时使用 |
 
 #### 层级 2: 细分领域审计 (V3.5 — Tavily + LLM 提取)
 
@@ -51,20 +53,28 @@
 - **Hardware:** Book-to-Bill Ratio — 通过 Tavily 搜索 Bookings/Orders 数据，LLM 提取，> 1.0 表示供不应求
 - **Marketplace:** Take Rate Trend — 通过 Tavily 搜索 Take Rate / GMV 数据，LLM 提取并检测"Take Rate Trap"（变现率↑但GMV↓）
 
-#### 层级 3: 全局测谎仪 (Universal Lie Detector)
+#### 层级 3: 全局测谎仪 (Universal Lie Detector — V3.5 增强)
 
-| 检测项 | 逻辑 | 含义 |
+| 检测项 | 逻辑 | V3.5 变更 |
 |--------|------|------|
-| CFO Divergence | NI 增长 > 20% 但 CFO 下降 | 盈利质量可疑，可能存在会计操纵 |
-| Insider Selling | Yahoo Insider TX 中 Sell > 3 笔 | 内部人大量抛售预警 |
+| CFO Divergence | NI 增长 > 20% 但 CFO 下降 | **需连续 2 季度或 TTM 成立**，单季度不触发 |
+| Insider Selling | Yahoo Insider TX 中 Sell > 3 笔 | **降级为红旗**，不再直接 Fail |
 
-#### 层级 4: Pass/Fail 判定
+#### 层级 4: Pass/Fail 判定 (V3.5 Red Flag System)
 
-以下任一触发即 **Fail**：
-1. 季度增速 < `config.GROWTH_THRESHOLD_QUARTER`
-2. SBC/Revenue > `config.SBC_THRESHOLD_KILL`
-3. CFO Divergence 检测到
-4. Inventory Death Cross 检测到
+**V3.5 核心改动：** 不再"一触即死"，改为**红旗累积制**。红旗 ≥ 2 才硬性熔断。
+
+| 触发项 | 红旗数 | 豁免条件 |
+|--------|--------|----------|
+| 低增长 (CAGR/Q-Growth) | +1 | Rule of 40 > 40% 或 EPS CAGR > 20% 可豁免 |
+| 净稀释率 > 5% YoY | +1 | — |
+| CFO Divergence (TTM/连续) | +1 | — |
+| Insider Selling > 3 笔 | +1 | — |
+| Inventory Death Cross | **+2** | 直接触发 Fail |
+
+- 红旗 = 0 → **PASSED**
+- 红旗 = 1 → **PASSED (with Warning)**
+- 红旗 ≥ 2 → **FAILED**
 
 ---
 

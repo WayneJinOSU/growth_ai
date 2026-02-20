@@ -26,14 +26,15 @@ flowchart TD
     In["Ticker Input"] --> B["Blacklist Check"]
     B -- "Fashion/Regional Banks" --> Fail["❌ SKIP"]
     B -- "Clear" --> G["Future Growth Check"]
-    G -- "CAGR < 20%" --> Fail
+    G -- "CAGR < 20%" --> Soft["⚠️ Flag (Pass to Phase 1)"]
     G -- "Pass" --> M["Macro Mode Check"]
+    Soft --> M
     M -- "VIX > 30 / Yield Surge" --> Fail
     M -- "Safe" --> Out["✅ Valid Candidate"]
 ```
 
 1.  **🚫 The Kill Zone**: Fashion, regional banks, asset-heavy/low-margin businesses.
-2.  **⚡️ The Iron Rule**: Expected revenue CAGR > 20% for the next 3 years.
+2.  **⚡️ The Soft Rule (V3.5)**: Expected revenue CAGR > 20% for the next 3 years. Below threshold → flagged but passed to Phase 1 for Rule of 40 / EPS CAGR cross-check.
 3.  **📉 Macro Pressure Valve**: Triggers circuit breaker if VIX > 30 or Treasury yields surge.
 
 ---
@@ -55,7 +56,7 @@ flowchart TD
 *   **SaaS**: NDR > 110%, RPO growth > Revenue growth.
 *   **Hard Tech**: Book-to-Bill > 1.0, strictly prevent "Inventory Death Cross."
 *   **Platform/Consumables**: Rule of 40, LTV/CAC > 3.
-*   **Lie Detector**: Audit CFO/Net Income divergence and assess insider selling risks.
+*   **V3.5 Red Flag System**: Fail only on ≥2 red flags. Insider selling, SBC/dilution demoted to red flags. CFO divergence requires TTM/consecutive quarters.
 
 ---
 
@@ -108,7 +109,7 @@ flowchart TD
 
 *   **TAM Explosion**: Logic of doubling Total Addressable Market due to technological breakthroughs.
 *   **Second Growth Curve**: New business growth > 50% and accounting for > 10% of revenue.
-*   **Valuation Exemption**: For companies triggering "Blue Sky" logic, the PEG limit can be relaxed to 2.5.
+*   **Dual Valuation (V3.5)**: SaaS uses Rule of 40 P/S formula; traditional businesses use macro-adjusted PE. PEG limit can be relaxed to 2.5 for Blue Sky triggers.
 
 ---
 
@@ -124,7 +125,8 @@ flowchart TD
 ```
 
 *   **Primary Catalysts (Thematic Waves)**: Irreversible industry momentum (e.g., labor shortages driving AI demand).
-*   **Secondary Catalysts (Hard Events)**: Specific validation nodes like earnings reports, product launches, or investor days.
+*   **Secondary Catalysts (Hard Events)**: Earnings, product launches, investor days, **supply-side events** (lock-ups, offerings).
+*   **V3.5 Timestamp Guardrail**: Supply-side events limited to last 30 days or next 3 months.
 
 ---
 
@@ -150,21 +152,21 @@ flowchart TD
 ---
 
 ## 🚀 Phase 7: Physics VPA
-**Goal**: Institutional behavior analysis based on the SMA20 lifeline.
+**Goal**: Institutional behavior analysis based on the SMA50 lifeline (V3.5: upgraded from SMA20 for mid-large cap stocks).
 
 ```mermaid
 flowchart TD
-    Price["SMA20 Timeline"] --> Ignite["Price > SMA20 + RVol > 2.0"]
+    Price["SMA50 Timeline"] --> Ignite["Price > SMA20 + RVol > 2.0"]
     Ignite --> FIRE["🚀 IGNITION"]
     Price --> Accum["Range < 2% + RVol > 1.5"]
     Accum --> ACC["🔋 ACCUMULATION"]
-    Price --> Broken["Close < SMA20 for 3 Days"]
+    Price --> Broken["Close < SMA50 for 3 Days"]
     Broken --> EJECT["📉 BROKEN TREND"]
 ```
 
 *   **Ignition**: High-volume breakout of SMA20, RVol > 2.0, strong close.
 *   **Accumulation**: Tight range (< 2%) + volume (RVol > 1.5).
-*   **Broken Trend**: Closing below SMA20 for 3 consecutive days.
+*   **Broken Trend (V3.5)**: Closing below **SMA50** for 3 consecutive days. Can be overridden by Fortress Accumulation exemption.
 
 ---
 
@@ -177,6 +179,9 @@ flowchart TD
     Out -- "All YES" --> F["🔥 FIRE: Buy"]
     Out -- "No Ignition" --> W["👀 WATCH: Alert"]
     Out -- "Audit/Strategy FAIL" --> T["🗑️ TRASH: Reject"]
+    Out -- "Broken Trend + Fortress + True Discount" --> Fort{"VIX Check"}
+    Fort -- "VIX < 30" --> A["🏰 ACCUMULATE"]
+    Fort -- "VIX ≥ 30" --> W
 ```
 
 ---
@@ -254,14 +259,15 @@ flowchart TD
     In["Ticker Input"] --> B["Blacklist Check"]
     B -- "Fashion/Regional Banks" --> Fail["❌ SKIP"]
     B -- "Clear" --> G["Future Growth Check"]
-    G -- "CAGR < 20%" --> Fail
+    G -- "CAGR < 20%" --> Soft["⚠️ 标记 (交给 Phase 1)"]
     G -- "Pass" --> M["Macro Mode Check"]
+    Soft --> M
     M -- "VIX > 30 / Yield Surge" --> Fail
     M -- "Safe" --> Out["✅ Valid Candidate"]
 ```
 
 1.  **🚫 绝对黑名单 (The Kill Zone)**：服饰、区域银行、重资产/低毛利。
-2.  **⚡️ 20% 铁律 (The Iron Rule)**：未来 3 年预期营收 CAGR > 20%。
+2.  **⚡️ 20% 软化铁律 (V3.5)**：未来 3 年预期营收 CAGR > 20%。不达标时标记 `cagr_passed=False` 但不拦截，交由 Phase 1 结合 Rule of 40 / EPS CAGR 综合裁定。
 3.  **📉 宏观压力阀**：VIX > 30 或美债收益率飙升时触发熔断。
 
 ---
@@ -283,7 +289,7 @@ flowchart TD
 *   **SaaS**: NDR > 110%, RPO 增速 > 营收增速。
 *   **硬科技**: Book-to-Bill > 1.0, 严防“库存死亡交叉”。
 *   **平台消费**: Rule of 40, LTV/CAC > 3。
-*   **Lie Detector**: CFO 与净利润背离审计，内幕减持风险评估。
+*   **V3.5 红旗系统**: 累计 ≥2 红旗才熔断。内幕减持、SBC/稀释降级为红旗。CFO 背离需 TTM/连续两季度。
 
 ---
 
@@ -336,7 +342,7 @@ flowchart TD
 
 *   **TAM 爆炸**：由于技术突破导致的潜在市场规模翻倍逻辑。
 *   **第二增长曲线**：新业务增速 > 50%且占比超过 10%。
-*   **估值豁免**：触发蓝天逻辑的公司，PEG 限制可放宽至 2.5。
+*   **双轨估值 (V3.5)**：SaaS 使用 Rule of 40 P/S 公式；传统企业使用宏观调整 PE。蓝天触发后 PEG 限制放宽至 2.5。
 
 ---
 
@@ -352,7 +358,8 @@ flowchart TD
 ```
 
 *   **一级催化 (Thematic Waves)**：全行业不可逆势能（如劳动力短缺驱动 AI 刚需）。
-*   **二级催化 (Hard Events)**：财报、产品发布、投资者日等具体验证节点。
+*   **二级催化 (Hard Events)**：财报、产品发布、投资者日，**供给侧事件**（解禁、增发）。
+*   **V3.5 时间戳卫士**：供给侧事件限制在过去 30 天或未来 3 个月内。
 
 ---
 
@@ -378,21 +385,21 @@ flowchart TD
 ---
 
 ## 🚀 Phase 7: 量价物理学 (Physics VPA)
-**目标**：基于 SMA20 生命线的机构行为分析。
+**目标**：基于 SMA50 生命线的机构行为分析 (V3.5: 从 SMA20 升级为 SMA50 适配中大盘)。
 
 ```mermaid
 flowchart TD
-    Price["SMA20 Timeline"] --> Ignite["Price > SMA20 + RVol > 2.0"]
+    Price["SMA50 Timeline"] --> Ignite["Price > SMA20 + RVol > 2.0"]
     Ignite --> FIRE["🚀 IGNITION"]
     Price --> Accum["Range < 2% + RVol > 1.5"]
     Accum --> ACC["🔋 ACCUMULATION"]
-    Price --> Broken["Close < SMA20 for 3 Days"]
+    Price --> Broken["Close < SMA50 for 3 Days"]
     Broken --> EJECT["📉 BROKEN TREND"]
 ```
 
 *   **Ignition (点火)**：放量突破 SMA20，RVol > 2.0，强力收盘。
 *   **Accumulation (吸筹)**：紧凑振幅 (< 2%) + 放量 (RVol > 1.5)。
-*   **Broken Trend (破位)**：连续 3 日收盘于 SMA20 之下。
+*   **Broken Trend (破位, V3.5)**：连续 3 日收盘于 **SMA50** 之下。可被 Fortress Accumulation 豁免覆盖。
 
 ---
 
@@ -405,6 +412,9 @@ flowchart TD
     Out -- "All YES" --> F["🔥 FIRE: Buy"]
     Out -- "No Ignition" --> W["👀 WATCH: Alert"]
     Out -- "Audit/Strategy FAIL" --> T["🗑️ TRASH: Reject"]
+    Out -- "破位 + Fortress + True Discount" --> Fort{"VIX 检查"}
+    Fort -- "VIX < 30" --> A["🏰 ACCUMULATE"]
+    Fort -- "VIX ≥ 30" --> W
 ```
 
 ---

@@ -226,10 +226,12 @@ class Intelligence:
         If the stock is down, is it due to macro factors/sector rotation (True Discount) or broken fundamentals/competitor threat (Fake Discount)?
         
         Output Requirements:
+        - CRITICAL: You MUST start your response with EXACTLY one of these two tags:
+          [DISCOUNT_TYPE: TRUE_DISCOUNT]
+          [DISCOUNT_TYPE: FAKE_DISCOUNT]
         - Analyze the drivers of price action.
         - IMPORTANT: Provide a timeline of the price action and key events (e.g., "Dropped 15% on Jan 12th following...").
         - Distinguish macro vs. company-specific issues.
-        - Direct answer only. No "Based on..." or intro text.
         - Cite sources using [ID] format.
         - CRITICAL: If the context lacks specific price action data, output ONLY "N/A". Do not speculate.
         """

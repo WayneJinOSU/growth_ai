@@ -70,6 +70,8 @@ class Physics:
     def _calculate_technical_metrics(self, df: pd.DataFrame) -> PhysicsData:
         # Move existing logic here
         df['sma_20'] = df['close'].rolling(window=20).mean()
+        df['sma_50'] = df['close'].rolling(window=50).mean() # V3.5 New for Mid-Large Cap
+        df['sma_200'] = df['close'].rolling(window=200).mean() # V3.5 New
         df['vol_ma_20'] = df['volume'].rolling(window=20).mean()
         df['rvol'] = df.apply(lambda row: row['volume'] / row['vol_ma_20'] if row['vol_ma_20'] > 0 else 1.0, axis=1)
         df['range_pct'] = (df['high'] - df['low']) / df['open']
@@ -79,6 +81,8 @@ class Physics:
         data = PhysicsData()
         data.current_price = latest['close']
         data.sma_20 = latest['sma_20']
+        data.sma_50 = latest.get('sma_50', None)
+        data.sma_200 = latest.get('sma_200', None)
         data.relative_volume = latest['rvol']
         data.daily_range = latest['range_pct']
         data.close_strength = latest['close_loc']
@@ -98,10 +102,19 @@ class Physics:
             data.is_accumulation = True
             
         last_3 = df.tail(3)
-        below_sma_count = sum(row['close'] < row['sma_20'] for _, row in last_3.iterrows())
-        data.days_below_sma20 = below_sma_count
-        if below_sma_count >= 3:
-            data.is_broken_trend = True
+        below_sma20_count = sum(row['close'] < row['sma_20'] for _, row in last_3.iterrows())
+        data.days_below_sma20 = below_sma20_count
+        
+        # V3.5 Mid-Large Cap Modification: Use SMA 50 for trend breakdown
+        if 'sma_50' in last_3.columns and not pd.isna(last_3['sma_50'].iloc[-1]):
+            below_sma50_count = sum(row['close'] < row['sma_50'] for _, row in last_3.iterrows())
+            data.days_below_sma50 = below_sma50_count
+            if below_sma50_count >= 3:
+                data.is_broken_trend = True
+        else:
+            # Fallback to SMA20 if not enough data for 50 days
+            if below_sma20_count >= 3:
+                data.is_broken_trend = True
             
         data.details = f"RVol {latest['rvol']:.1f}x | Range {latest['range_pct']*100:.1f}% | Close Strength {latest['close_loc']:.1%}"
         return data

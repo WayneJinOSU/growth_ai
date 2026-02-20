@@ -37,10 +37,11 @@
 - 命中黑名单 → **直接 Fail**
 - 数据来源: FMP Profile API
 
-### 4. 20% 铁律 (Future 20% Iron Rule)
+### 4. 20% 铁律 (Future 20% Iron Rule) — V3.5 软化版
 
 - 通过 Yahoo Finance 获取 3 年预期营收 CAGR
-- 若预期增速 < `config.FUTURE_CAGR_THRESHOLD` (默认 20%) → **Fail**
+- 若预期增速 < `config.FUTURE_CAGR_THRESHOLD` (默认 20%) → **不再直接 Fail**
+- V3.5 改动：CAGR 不达标时，记录 `cagr_passed = False` 但整体仍 Pass，将判断权交给 Phase 1 (Deep Audit) 结合 Rule of 40 和 EPS CAGR 做综合裁定
 - 数据不可用时跳过此项检查
 
 ---
@@ -63,7 +64,8 @@
       us10y_yield,           # float
       vix_value,             # float
       future_revenue_cagr_3y,# float
-      passed,                # bool (综合判定)
+      cagr_passed,           # bool (V3.5 New: CAGR 是否达标，传递给 Phase 1)
+      passed,                # bool (综合判定，仅黑名单导致 Fail)
       fail_reason            # str (失败原因)
     )
 ```

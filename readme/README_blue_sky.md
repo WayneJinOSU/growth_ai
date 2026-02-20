@@ -33,13 +33,26 @@
 1. 复用同一批搜索结果
 2. LLM 分析 TAM 扩展证据 (新地域、新客户群体、新应用场景)
 
-**输出:** `BlueSkyData(rnd_effectiveness, tam_expansion)`
+**输出:** `BlueSkyData(rnd_effectiveness, tam_expansion, is_strong_second_curve)`
+(V3.5 新增: 通过 LLM 直接输出 JSON 布尔值判断是否存在强第二曲线，替代脆弱的关键词匹配)
 
-### 功能 2: Macro-Adjusted Valuation — 宏观动态估值
+### 功能 2: Macro-Adjusted Valuation — 宏观动态估值 (V3.5 双轨制)
 
-**核心问题:** 同样一家公司，在不同宏观环境下应该给不同的 PE 倍数。
+**核心问题:** 同样一家公司，在不同宏观环境下应该给不同的估值倍数。**SaaS 和传统公司使用不同的锚点。**
 
-#### 宏观 PE 调整矩阵
+#### Track A: SaaS / Consumption — P/S 模型 (V3.5 新增)
+
+当商业模式为 `SaaS` 或 `Consumption` 时，PE 失效，改用 **Rule of 40 驱动的 Forward P/S**：
+
+| Rule of 40 | Target P/S |
+|-----------|----------|
+| < 30% | 5x (Base) |
+| 30% - 50% | 8x - 13x |
+| > 50% | 13x - 20x+ |
+
+**公式:** `target_ps = 5.0 + max(0, (rule_of_40 - 0.30) × 100 × 0.4)`
+
+#### Track B: 传统 PE 模型 (Hardware / Marketplace / Other)
 
 | MacroMode | Bear PE | Target PE | Bull PE | PEG 上限 |
 |-----------|---------|-----------|---------|----------|
@@ -49,17 +62,16 @@
 
 #### 估值计算逻辑
 
+**PE Track:**
 1. 从 FMP 获取当前 Price 和 PE (TTM)
 2. 反推 EPS = Price / PE
-3. 用宏观调整后的 PE 倍数计算三档目标价:
-   - Bear Case = EPS × Bear PE
-   - Target = EPS × Target PE
-   - Bull Case = EPS × Bull PE
-4. 判断当前价格所处区间:
-   - < Bear Price → **STRONG BUY ZONE**
-   - Bear ~ Target → **BUY ZONE**
-   - Target ~ Bull → **HOLD ZONE**
-   - > Bull Price → **SELL ZONE**
+3. 用宏观调整后的 PE 倍数计算三档目标价
+4. 判断当前价格所处区间 (STRONG BUY → SELL)
+
+**P/S Track:**
+1. 根据 Rule of 40 计算 Target P/S
+2. 按宏观模式调整 Bear/Bull 倍数
+3. 输出 P/S 锚点供下游 Phase 6 使用
 
 ---
 
@@ -94,6 +106,6 @@
 ```
 
 Blue Sky 的输出直接影响：
-- Phase 6 (Strategy): `rnd_effectiveness` / `tam_expansion` 中的关键词触发 Blue Sky Re-Rating，将 PEG 上限从 2.0 放宽到 2.5
+- Phase 6 (Strategy): `is_strong_second_curve` 结构化布尔值触发 Blue Sky Re-Rating，将 PEG 上限从 2.0 放宽到 2.5
 - Phase 8 (Tribunal): `blue_sky` 数据用于 Checklist 的"蓝天确认"项
 - Report: 估值三档目标价展示在 Macro-Adjusted Valuation 章节

@@ -25,11 +25,21 @@
 
 ---
 
-## 决策逻辑 (优先级从高到低)
+## 决策逻辑 (优先级从高到低) — V3.5 增强
 
 ### 一票否决 (TRAP)
 - `audit_passed = False` → **TRAP** (High Confidence)
-- `physics.is_broken_trend = True` → **TRAP** (High Confidence)
+
+### 趋势破位判断 (V3.5 Fortress 豁免)
+- `physics.is_broken_trend = True` 时，进入三级判断：
+
+| 条件 | 结果 | 原因 |
+|------|------|------|
+| Fortress + True Discount + **VIX < 30** | 🏰 **ACCUMULATE** (Medium) | 左侧建仓机会，真折价 + 深护城河 |
+| Fortress + True Discount + **VIX ≥ 30** | ⚠️ **WATCH** (Low) | VIX 安全栓：极端恐慌不接飞刀 |
+| 其他情况 | 🚩 **TRAP** (High) | 原始逻辑，破位即熔断 |
+
+> **True Discount 解析：** 从 Phase 3 Intelligence 的 `dislocation_context` 中程序化提取 `[DISCOUNT_TYPE: TRUE_DISCOUNT]` 标签
 
 ### 全部通过 (FIRE)
 - 6 项全部 Pass → **FIRE** (High Confidence) — 全仓开火

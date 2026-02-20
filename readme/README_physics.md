@@ -18,7 +18,9 @@
 
 | 指标 | 公式 | 说明 |
 |------|------|------|
-| SMA 20 | 20 日收盘价简单移动平均 | 生命线 |
+| SMA 20 | 20 日收盘价简单移动平均 | 短期生命线 |
+| **SMA 50** | 50 日收盘价简单移动平均 | V3.5 新增：中期趋势线 (中大盘专用) |
+| **SMA 200** | 200 日收盘价简单移动平均 | V3.5 新增：长期趋势线 |
 | RVol | `当日成交量 / 20 日平均成交量` | 相对成交量，衡量资金活跃度 |
 | Daily Range | `(High - Low) / Open` | 日内振幅 |
 | Close Strength | `(Close - Low) / (High - Low)` | 收盘位置强度 (1.0 = 收在最高) |
@@ -49,14 +51,17 @@
 
 **含义:** 机构资金大举入场，动量启动 — 最强买入信号
 
-### 3. Broken Trend 📉 (破位)
+### 3. Broken Trend 📉 (破位) — V3.5 中大盘适配
 
 **物理类比:** 结构崩塌，地基被抽走
 
-**触发条件:**
-- 最近 3 个交易日中，`Close < SMA20` 的天数 ≥ 3
+**触发条件 (V3.5 修改):**
+- 最近 3 个交易日中，`Close < SMA50` 的天数 ≥ 3 (原为 SMA20)
+- 当 SMA50 数据不足时，回退至 SMA20 判断
 
-**含义:** 趋势死亡，不要接飞刀 — 最强卖出/回避信号
+**V3.5 修改原因:** 中大盘成长股经常回踎 SMA20 后反弹，SMA20 过于敏感会导致误杀。SMA50 更适合作为中期趋势参考线。
+
+**含义:** 趋势死亡，不要接飞刀 — 最强卖出/回避信号 (但可被 Phase 8 Fortress 豁免覆盖)
 
 ---
 
@@ -93,9 +98,9 @@
 
 输出:
   - PhysicsData(
-      sma_20, current_price,
+      sma_20, sma_50, sma_200, current_price,
       relative_volume, daily_range, close_strength,
-      days_below_sma20,
+      days_below_sma20, days_below_sma50,
       is_accumulation, is_ignition, is_broken_trend, is_high_risk,
       ai_analysis, ai_conclusion, ai_recommendation,
       details

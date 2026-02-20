@@ -13,7 +13,7 @@ from tools.fmp import FMPClient
 from tools.yahoo import YahooClient
 from tools.llm import LLMClient
 from tools.search import SearchClient
-from core.data_models import DeepAuditData, BusinessModel, IdentifierData
+from core.data_models import DeepAuditData, BusinessModel, IdentifierData, GatekeeperData
 import config
 import re
 
@@ -151,7 +151,7 @@ class DeepAudit:
         except:
             return IdentifierData(business_model=BusinessModel.OTHER)
 
-    def analyze(self, ticker: str, identifier_data: IdentifierData = None) -> DeepAuditData:
+    def analyze(self, ticker: str, identifier_data: IdentifierData = None, gatekeeper_data: GatekeeperData = None) -> DeepAuditData:
         """
         执行深度审计
         """
@@ -176,30 +176,46 @@ class DeepAudit:
         print(f"    - Audit Protocol: {model.value}")
         
         # ========== 2. Historical Growth & Hygiene (Legacy Iron Gate) ==========
-        # CAGR
+        # CAGR (Rev & EPS)
         if income_annual and len(income_annual) > 1:
             try:
-                latest = income_annual[0]['revenue']
-                old = income_annual[-1]['revenue']
+                latest_rev = income_annual[0]['revenue']
+                old_rev = income_annual[-1]['revenue']
                 years = len(income_annual) - 1
-                metrics.revenue_cagr_ny = self._calculate_cagr(old, latest, years)
-                print(f"      CAGR ({years}y): {metrics.revenue_cagr_ny:.1%}")
+                metrics.revenue_cagr_ny = self._calculate_cagr(old_rev, latest_rev, years)
+                print(f"      Rev CAGR ({years}y): {metrics.revenue_cagr_ny:.1%}")
+                
+                # EPS CAGR (V3.5 Enhancement)
+                latest_eps = income_annual[0].get('eps', 0)
+                old_eps = income_annual[-1].get('eps', 0)
+                if old_eps > 0 and latest_eps > 0:
+                    metrics.eps_cagr_ny = self._calculate_cagr(old_eps, latest_eps, years)
+                    print(f"      EPS CAGR ({years}y): {metrics.eps_cagr_ny:.1%}")
             except: pass
             
         # Quarterly Growth
         if income_quarterly and len(income_quarterly) >= 5:
             curr = income_quarterly[0]['revenue']
             prev = income_quarterly[4]['revenue']
-            metrics.revenue_growth_current_q = (curr - prev) / prev
-            print(f"      Q Growth: {metrics.revenue_growth_current_q:.1%}")
+            if prev > 0:
+                metrics.revenue_growth_current_q = (curr - prev) / prev
+                print(f"      Q Growth: {metrics.revenue_growth_current_q:.1%}")
             
-        # SBC Check (Dilution Shield)
-        if cash_flow_quarterly and income_quarterly:
+        # V3.5 True Net Dilution Shield (Outstanding Shares)
+        if income_annual and len(income_annual) >= 2:
+            curr_shares = income_annual[0].get('weightedAverageShsOutDil', 0)
+            prev_shares = income_annual[1].get('weightedAverageShsOutDil', 0)
+            
+            if prev_shares > 0:
+                metrics.share_count_growth = (curr_shares - prev_shares) / prev_shares
+                print(f"      YoY Dilution: {metrics.share_count_growth:.1%}")
+        elif cash_flow_quarterly and income_quarterly:
+            # Fallback to SBC ratio if shares not available
             sbc = sum(c.get('stockBasedCompensation', 0) for c in cash_flow_quarterly[:4])
             rev = sum(i.get('revenue', 0) for i in income_quarterly[:4])
             if rev > 0:
                 metrics.sbc_revenue_ratio = sbc / rev
-                print(f"      SBC/Rev: {metrics.sbc_revenue_ratio:.1%}")
+                print(f"      SBC/Rev Backup: {metrics.sbc_revenue_ratio:.1%}")
                 
         # ========== 3. Segment Specific Audit (V3.5) ==========
         
@@ -305,17 +321,32 @@ class DeepAudit:
         
         # A. CFO Divergence (NI vs CFO)
         cfo_divergence = False
-        if income_quarterly and cash_flow_quarterly and len(income_quarterly)>=2:
+        if income_quarterly and cash_flow_quarterly and len(income_quarterly)>=3 and len(cash_flow_quarterly)>=3:
+            # V3.5: Require TTM or consecutive 2 quarters
             ni_curr = income_quarterly[0]['netIncome']
-            ni_prev = income_quarterly[1]['netIncome']
+            ni_prev_1 = income_quarterly[1]['netIncome']
+            ni_prev_2 = income_quarterly[2]['netIncome']
             cfo_curr = cash_flow_quarterly[0]['operatingCashFlow']
-            cfo_prev = cash_flow_quarterly[1]['operatingCashFlow']
+            cfo_prev_1 = cash_flow_quarterly[1]['operatingCashFlow']
+            cfo_prev_2 = cash_flow_quarterly[2]['operatingCashFlow']
             
-            # If NI grew > 20% but CFO declined
-            if ni_prev > 0 and (ni_curr - ni_prev)/ni_prev > 0.20:
-                if cfo_curr < cfo_prev:
-                    cfo_divergence = True
-                    print("      ⚠️ CFO DIVERGENCE: NI Spiked but CFO Dropped")
+            # Check consecutive divergence
+            div_q1 = ni_prev_1 > 0 and (ni_curr - ni_prev_1)/ni_prev_1 > 0.20 and cfo_curr < cfo_prev_1
+            div_q2 = ni_prev_2 > 0 and (ni_prev_1 - ni_prev_2)/ni_prev_2 > 0.20 and cfo_prev_1 < cfo_prev_2
+            
+            if div_q1 and div_q2:
+                cfo_divergence = True
+                print("      ⚠️ CFO DIVERGENCE: Consecutive NI Spiked but CFO Dropped")
+            
+            # Or TTM divergence
+            ni_ttm = sum(i['netIncome'] for i in income_quarterly[:4]) if len(income_quarterly)>=8 else 0
+            ni_prev_ttm = sum(i['netIncome'] for i in income_quarterly[4:8]) if len(income_quarterly)>=8 else 0
+            cfo_ttm = sum(c['operatingCashFlow'] for c in cash_flow_quarterly[:4]) if len(cash_flow_quarterly)>=8 else 0
+            cfo_prev_ttm = sum(c['operatingCashFlow'] for c in cash_flow_quarterly[4:8]) if len(cash_flow_quarterly)>=8 else 0
+            
+            if ni_prev_ttm > 0 and (ni_ttm - ni_prev_ttm)/ni_prev_ttm > 0.20 and cfo_ttm < cfo_prev_ttm:
+                cfo_divergence = True
+                print("      ⚠️ CFO DIVERGENCE: TTM NI Grew >20% but CFO Declined")
         
         # B. Insider Selling (Yahoo)
         insider_risk = False
@@ -328,36 +359,68 @@ class DeepAudit:
         
         metrics.insider_selling_risk = insider_risk
         
-        # ========== 5. Pass/Fail Logic ==========
+        # ========== 5. Pass/Fail Logic (V3.5 Red Flag System) ==========
         passed = True
         reasons = []
+        red_flags = 0
         
-        # 1. Growth Check
-        if (metrics.revenue_growth_current_q and metrics.revenue_growth_current_q < config.GROWTH_THRESHOLD_QUARTER):
-             passed = False
-             reasons.append("Low Growth")
+        # 1. Growth Check (Integrate Phase 0 Gatekeeper rules)
+        # Check Gatekeeper's findings
+        cagr_issue = gatekeeper_data and not gatekeeper_data.cagr_passed
+        q_growth_issue = metrics.revenue_growth_current_q and metrics.revenue_growth_current_q < config.GROWTH_THRESHOLD_QUARTER
+        
+        if cagr_issue or q_growth_issue:
+            # Rule of 40 Exemption for SaaS/Consumption or high EPS growth
+            rule40_ok = metrics.rule_of_40 and metrics.rule_of_40 > 0.40
+            eps_ok = metrics.eps_cagr_ny and metrics.eps_cagr_ny > 0.20
+            
+            if rule40_ok or eps_ok:
+                print("      ✓ Growth Exemption Activated (Rule of 40 / EPS leverage)")
+            else:
+                red_flags += 1
+                reasons.append(f"🚩 Low Growth (CAGR/Q-Growth) & No Profit Leverage")
              
-        # 2. SBC Check
-        if metrics.sbc_revenue_ratio and metrics.sbc_revenue_ratio > config.SBC_THRESHOLD_KILL:
-             passed = False
-             reasons.append("Excessive SBC")
+        # 2. SBC / Dilution Check
+        if metrics.share_count_growth and metrics.share_count_growth > 0.05:
+            red_flags += 1
+            reasons.append("🚩 High Net Dilution (>5% YoY)")
+        elif not metrics.share_count_growth and metrics.sbc_revenue_ratio and metrics.sbc_revenue_ratio > config.SBC_THRESHOLD_KILL:
+            red_flags += 1
+            reasons.append("🚩 Excessive SBC")
              
         # 3. Lie Detector
         if cfo_divergence:
-             passed = False
-             reasons.append("CFO Divergence")
+            red_flags += 1
+            reasons.append("🚩 CFO Divergence")
+             
+        if insider_risk:
+            red_flags += 1
+            reasons.append("🚩 Insider Selling Risk (>3 trans)")
         
         if metrics.inventory_health == "DEATH CROSS":
-             passed = False
-             reasons.append("Inventory Death Cross")
+            red_flags += 2  # Critical failure
+            reasons.append("🚩🚩 Inventory Death Cross")
 
+        metrics.red_flags = red_flags
+        
+        if red_flags >= 2:
+            passed = False
+            metrics.fail_reason = " | ".join(reasons)
+        else:
+            if red_flags == 1:
+                metrics.fail_reason = "Warning: " + reasons[0]
+            else:
+                metrics.fail_reason = None
+        
         metrics.passed = passed
-        metrics.fail_reason = ", ".join(reasons) if reasons else None
         
         if passed:
-            print("    - Deep Audit PASSED")
+            if red_flags > 0:
+                print(f"    - Deep Audit PASSED (with Warnings: {metrics.fail_reason})")
+            else:
+                print("    - Deep Audit PASSED")
         else:
-            print(f"    - Deep Audit FAILED: {metrics.fail_reason}")
+            print(f"    - Deep Audit FAILED (Red Flags >= 2): {metrics.fail_reason}")
 
         return metrics
 

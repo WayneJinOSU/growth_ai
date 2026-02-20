@@ -82,8 +82,8 @@ def analyze_ticker_v35(ticker: str, fmp: FMPClient, llm: LLMClient, search: Sear
     data.identifier = deep_audit.identify_business_model(ticker, profile)
     print(f"    - Business Model: {data.identifier.business_model.value}")
     
-    # 1b. Audit
-    data.deep_audit = deep_audit.analyze(ticker, data.identifier)
+    # 1b. Audit (V3.5: Pass gatekeeper data for CAGR/Rule-of-40 cross-check)
+    data.deep_audit = deep_audit.analyze(ticker, data.identifier, data.gatekeeper)
     
     if not data.deep_audit.passed:
         print(f"[{ticker}] ❌ Deep Audit Failed: {data.deep_audit.fail_reason}")

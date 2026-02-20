@@ -72,6 +72,7 @@ class GatekeeperData(BaseModel):
     us10y_yield: Optional[float] = None
     vix_value: Optional[float] = None
     future_revenue_cagr_3y: Optional[float] = None  # V3.5 New
+    cagr_passed: bool = True # Track raw check before deeper evaluation
     passed: bool
     fail_reason: Optional[str] = None
 
@@ -102,7 +103,6 @@ class DeepAuditData(BaseModel):
     opex_growth: Optional[float] = None
     operating_leverage: Optional[bool] = None  # True if Rev Growth > OpEx Growth
     
-    # V3.2
     sbc_revenue_ratio: Optional[float] = None
     share_count_growth: Optional[float] = None
     dilution_shield_passed: Optional[bool] = None
@@ -115,6 +115,9 @@ class DeepAuditData(BaseModel):
     inventory_health: Optional[str] = None # Hard Tech
     take_rate_trend: Optional[str] = None # Marketplace
     insider_selling_risk: bool = False # Universal Lie Detector
+
+    eps_cagr_ny: Optional[float] = None # V3.5
+    red_flags: int = 0 # V3.5 New: Fail only on multiple flags
 
     passed: bool = False
     fail_reason: Optional[str] = None
@@ -129,6 +132,7 @@ class IdentifierData(BaseModel):
 class BlueSkyData(BaseModel):
     rnd_effectiveness: Optional[str] = None
     tam_expansion: Optional[str] = None
+    is_strong_second_curve: bool = False
 
 
 class CatalystData(BaseModel):
@@ -149,16 +153,19 @@ class CatalystData(BaseModel):
 class PhysicsData(BaseModel):
     """V3.5 Phase 7: Physics of VPA"""
     sma_20: Optional[float] = None
+    sma_50: Optional[float] = None  # V3.5 New
+    sma_200: Optional[float] = None # V3.5 New
     current_price: Optional[float] = None
     relative_volume: Optional[float] = None  # RVol = Vol / Avg_Vol_20
     daily_range: Optional[float] = None  # (High - Low) / Close
     close_strength: Optional[float] = None  # (Close - Low) / (High - Low)
     days_below_sma20: int = 0
+    days_below_sma50: int = 0  # V3.5 New
     
     is_accumulation: bool = False  # Range < 2% + RVol > 1.5
     is_ignition: bool = False  # Price > SMA20 + RVol > 2.0 + Strong Close
     is_high_risk: bool = False  # High Rvol in down days or breakdown
-    is_broken_trend: bool = False  # Close < SMA20 for 3+ days
+    is_broken_trend: bool = False  # Close < SMA50 for 3+ days (Modified for Mid-Large Cap)
     
     details: Optional[str] = None
     

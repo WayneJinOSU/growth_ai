@@ -13,7 +13,8 @@ from tools.search import SearchClient
 from tools.fmp import FMPClient
 from tools.search_helpers import SearchHelper
 from datetime import datetime
-from core.data_models import BlueSkyPhaseData, BlueSkyData, GatekeeperData, MacroMode
+import json
+from core.data_models import BlueSkyPhaseData, BlueSkyData, GatekeeperData, MacroMode, BusinessModel, DeepAuditData
 
 
 class BlueSkyAnalyzer:
@@ -89,6 +90,7 @@ class BlueSkyAnalyzer:
     def _analyze_blue_sky(self, ticker: str, references: list,
                           deep_search: bool = False) -> BlueSkyData:
         blue_sky = BlueSkyData()
+        current_date = datetime.now().strftime('%Y-%m-%d')
 
         query = f"{ticker} R&D investment areas new product expansion TAM analysis"
         print(f"      Searching for Blue Sky potential: {query}")
@@ -102,7 +104,7 @@ class BlueSkyAnalyzer:
             return blue_sky
 
         prompt_rnd = f"""
-        Current Date: {datetime.now().strftime('%Y-%m-%d')}
+        Current Date: {current_date}
         Analyze the R&D strategy of {ticker} based on:
         {context}
         
@@ -122,28 +124,49 @@ class BlueSkyAnalyzer:
         print(f"      R&D Effectiveness: {blue_sky.rnd_effectiveness[:100]}...")
 
         prompt_tam = f"""
-        Current Date: {datetime.now().strftime('%Y-%m-%d')}
-        Analyze the TAM (Total Addressable Market) expansion capability of {ticker} based on:
-        {context}
+        Current Date: {current_date}
+        Based on the Context and the company's R&D strategy, analyze the TAM expansion.
         
+        Context: {context}
+        R&D Strategy: {blue_sky.rnd_effectiveness}
+        
+        Task 1 (Deep Analysis):
+        Analyze the TAM (Total Addressable Market) expansion capability of {ticker} based on the Context.
         Does the management have a history of successfully crossing into new industries (TAM Expansion)?
         Is the TAM static or dynamic?
+        Provide evidence of TAM expansion (e.g., new geographies, customer segments).
         
-        Output Requirements:
-        - Provide evidence of TAM expansion (e.g., new geographies, customer segments).
-        - Direct analysis only.
-        - NO introductory phrases.
-        - NO Markdown headers.
-        - Allow multi-paragraph deep dive.
-        - IMPORTANT: Cite sources using [ID] format.
-        - CRITICAL: If the context lacks specific TAM or market expansion data, output ONLY "N/A". Do not speculate.
+        Task 2 (Conclusion):
+        Based on BOTH the R&D Strategy and your TAM expansion analysis, does this company possess a "Strong Second Curve"?
+        A strong second curve is defined as explosive growth indicators (e.g., >50% growth, doubling, breakthrough technology, massive new TAM expansion, clear second curve).
+        
+        Output MUST be valid JSON format exactly like this:
+        {{
+            "tam_expansion": "Your detailed, multi-paragraph deep dive analysis goes here (string). Cite sources using [ID] format. If the context lacks specific TAM data, output ONLY 'N/A'.",
+            "is_strong_second_curve": true or false
+        }}
         """
-        blue_sky.tam_expansion = self.llm.analyze_text(prompt_tam).strip()
-        print(f"      TAM Expansion: {blue_sky.tam_expansion[:100]}...")
+        try:
+            tam_result = self.llm.analyze_text(prompt_tam).strip()
+            # Clean up potential markdown formatting
+            if tam_result.startswith("```json"):
+                tam_result = tam_result.replace("```json", "").replace("```", "").strip()
+            tam_data = json.loads(tam_result)
+            
+            blue_sky.tam_expansion = tam_data.get("tam_expansion", "N/A")
+            blue_sky.is_strong_second_curve = tam_data.get("is_strong_second_curve", False)
+            print(f"      TAM Expansion: {blue_sky.tam_expansion[:100]}...")
+            print(f"      Strong Second Curve Detected: {blue_sky.is_strong_second_curve}")
+        except Exception as e:
+            print(f"      [Warning] Failed to parse Blue Sky TAM/Trigger JSON: {e}")
+            blue_sky.tam_expansion = tam_result if 'tam_result' in locals() else "N/A"
+            blue_sky.is_strong_second_curve = False
+
 
         return blue_sky
 
-    def _analyze_macro_adjusted_valuation(self, ticker: str, gatekeeper_data: GatekeeperData) -> str:
+    def _analyze_macro_adjusted_valuation(self, ticker: str, gatekeeper_data: GatekeeperData, 
+                                          business_model: BusinessModel = None, rule_of_40: float = None) -> str:
         """
         根据当前宏观环境 (MacroMode) 调整估值倍数，计算 Bear/Target/Bull Case。
         """
@@ -173,35 +196,56 @@ class BlueSkyAnalyzer:
             vix_status = "⚠️ PANIC" if vix > 30 else "Normal"
             analysis_parts.append(f"VIX: {vix:.1f} ({vix_status})")
 
-        analysis_parts.append("\nValuation Parameters (Macro-Adjusted):")
-        analysis_parts.append(f"  - Bear Case PE: {valuation_params['bear_pe']}x")
-        analysis_parts.append(f"  - Target PE: {valuation_params['target_pe']}x")
-        analysis_parts.append(f"  - Bull Case PE: {valuation_params['bull_pe']}x")
-        analysis_parts.append(f"  - Max Acceptable PEG: {valuation_params['peg_max']}")
+        # --- V3.5 SaaS Specific P/S Track ---
+        if business_model in [BusinessModel.SAAS, BusinessModel.CONSUMPTION]:
+            eff_rule_of_40 = rule_of_40 or 0
+            # Target P/S Formula: 5.0 + max(0, (rule_of_40 - 0.30) * 100 * 0.4)
+            target_ps = 5.0 + max(0, (eff_rule_of_40 - 0.30) * 100 * 0.4)
+            bear_ps = target_ps * 0.7 if macro_mode == MacroMode.TIGHT else target_ps * 0.8
+            bull_ps = target_ps * 1.05 if macro_mode == MacroMode.TIGHT else target_ps * 1.2
+            
+            analysis_parts.append("\nValuation Parameters (SaaS P/S Model):")
+            analysis_parts.append(f"  - Business Model: {business_model.value}")
+            analysis_parts.append(f"  - Rule of 40: {eff_rule_of_40:.1%}")
+            analysis_parts.append(f"  - Bear Case (Forward P/S): {bear_ps:.1f}x")
+            analysis_parts.append(f"  - Target Case (Forward P/S): {target_ps:.1f}x")
+            analysis_parts.append(f"  - Bull Case (Forward P/S): {bull_ps:.1f}x")
+            
+            # Note: Need FMP integration to retrieve current P/S or Sales/Share 
+            # for full dynamic output. We output the multiplier targets clearly.
+            analysis_parts.append("\n[Action]: P/S Anchors calculated. Use these multiples to gauge current Market Cap against Forward Sales.")
+            
+        else:
+            # --- Traditional PE Track ---
+            analysis_parts.append("\nValuation Parameters (Macro-Adjusted PE):")
+            analysis_parts.append(f"  - Bear Case PE: {valuation_params['bear_pe']}x")
+            analysis_parts.append(f"  - Target PE: {valuation_params['target_pe']}x")
+            analysis_parts.append(f"  - Bull Case PE: {valuation_params['bull_pe']}x")
+            analysis_parts.append(f"  - Max Acceptable PEG: {valuation_params['peg_max']}")
 
-        if current_pe and current_price:
-            analysis_parts.append("\nCurrent Valuation:")
-            analysis_parts.append(f"  - Price: ${current_price:.2f}")
-            analysis_parts.append(f"  - PE (TTM): {current_pe:.1f}x")
+            if current_pe and current_price:
+                analysis_parts.append("\nCurrent Valuation (PE):")
+                analysis_parts.append(f"  - Price: ${current_price:.2f}")
+                analysis_parts.append(f"  - PE (TTM): {current_pe:.1f}x")
 
-            if current_pe > 0:
-                eps = current_price / current_pe
-                bear_price = eps * valuation_params['bear_pe']
-                target_price = eps * valuation_params['target_pe']
-                bull_price = eps * valuation_params['bull_pe']
+                if current_pe > 0:
+                    eps = current_price / current_pe
+                    bear_price = eps * valuation_params['bear_pe']
+                    target_price = eps * valuation_params['target_pe']
+                    bull_price = eps * valuation_params['bull_pe']
 
-                analysis_parts.append(f"\nImplied Price Targets (Based on EPS ${eps:.2f}):")
-                analysis_parts.append(f"  - Bear Case: ${bear_price:.2f} ({((bear_price/current_price)-1)*100:+.1f}%)")
-                analysis_parts.append(f"  - Target: ${target_price:.2f} ({((target_price/current_price)-1)*100:+.1f}%)")
-                analysis_parts.append(f"  - Bull Case: ${bull_price:.2f} ({((bull_price/current_price)-1)*100:+.1f}%)")
+                    analysis_parts.append(f"\nImplied Price Targets (Based on EPS ${eps:.2f}):")
+                    analysis_parts.append(f"  - Bear Case: ${bear_price:.2f} ({((bear_price/current_price)-1)*100:+.1f}%)")
+                    analysis_parts.append(f"  - Target: ${target_price:.2f} ({((target_price/current_price)-1)*100:+.1f}%)")
+                    analysis_parts.append(f"  - Bull Case: ${bull_price:.2f} ({((bull_price/current_price)-1)*100:+.1f}%)")
 
-                if current_price < bear_price:
-                    analysis_parts.append("\n✅ STRONG BUY ZONE: Current price below Bear Case")
-                elif current_price < target_price:
-                    analysis_parts.append("\n✓ BUY ZONE: Current price between Bear and Target")
-                elif current_price < bull_price:
-                    analysis_parts.append("\n⚠️ HOLD ZONE: Current price between Target and Bull")
-                else:
-                    analysis_parts.append("\n❌ SELL ZONE: Current price above Bull Case")
+                    if current_price < bear_price:
+                        analysis_parts.append("\n✅ STRONG BUY ZONE: Current price below Bear Case")
+                    elif current_price < target_price:
+                        analysis_parts.append("\n✓ BUY ZONE: Current price between Bear and Target")
+                    elif current_price < bull_price:
+                        analysis_parts.append("\n⚠️ HOLD ZONE: Current price between Target and Bull")
+                    else:
+                        analysis_parts.append("\n❌ SELL ZONE: Current price above Bull Case")
 
         return "\n".join(analysis_parts)

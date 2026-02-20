@@ -37,8 +37,8 @@
 
 | 条件 | Tier | 含义 |
 |------|------|------|
-| Phase 1 Passed + King Makers | **Tier 1** | 深护城河 + 巨头背书 |
-| Phase 1 Passed 但无 King Makers | **Tier 2** | 基本面健康但缺乏战略验证 |
+| Phase 1 Passed + (King Makers 巨头背书 或 Organic Growth + App Store Dominance) | **Tier 1** | 深护城河 (B2B的生态锚点 或 B2C的自然增长霸主) |
+| Phase 1 Passed 但缺乏上述强护城河信号 | **Tier 2** | 基本面健康但缺乏战略验证 |
 | Phase 1 Failed | **Tier 3** | 弱护城河或基本面有问题 |
 
 **输出:** `tier_level` (TierLevel), `tier_rationale`
@@ -48,9 +48,8 @@
 **核心问题:** 有第二增长曲线吗？值得放宽估值容忍度吗？
 
 **逻辑:**
-1. 检查 Phase 4 的 `rnd_effectiveness` 和 `tam_expansion` 文本
-2. 匹配关键词: "50%", "100%", "doubling", "triple", "explosive", "breakthrough", "new segment", "second curve", "tam expansion"
-3. 命中任一关键词 → Blue Sky Triggered:
+1. 提取 Phase 4 (Blue Sky) 生成的 `is_strong_second_curve` 结构化布尔值标志
+2. 若为 True → Blue Sky Triggered:
    - PEG 上限从 **2.0 放宽到 2.5**
 
 **输出:** `blue_sky_triggered` (bool), `peg_limit` (float)
@@ -67,11 +66,14 @@
 | Valuation Status | Phase 1 PEG vs peg_limit | Green (便宜) / Red (贵) |
 | Tier Level | Step 2 | Tier 1 / 2 / 3 |
 
+> **V3.5 SaaS 豁免：** 若 `BusinessModel = SaaS/Consumption` 且 `Rule of 40 ≥ 50%`，即使 PEG 超限，Valuation Status 仍强制为 **Green**。
+
 #### 决策矩阵
 
 | Catalyst | Valuation | Tier | Strategic Definition | Action |
 |----------|-----------|------|---------------------|--------|
-| High | Green | Any | 💎 **Diamond Setup** | 完美击球区，激进买入 |
+| High | Green | Tier 1 | 💎 **Diamond Setup** | 完美击球区，激进买入 |
+| High | Green | Tier 2/3 | 🚀 **Momentum Ride** | 催化剂覆盖弱护城河，纯动量右侧投机 |
 | High | Red | Any | 🚀 **Momentum Ride** | 动量覆盖估值，右侧追入 |
 | Low | Green | Tier 1 | 🏰 **Fortress Accumulation** | 深护城河便宜货，左侧建仓 |
 | Low | Green | Tier 2/3 | ⚰️ **Dead Money** | 便宜但平庸，仅观察 |

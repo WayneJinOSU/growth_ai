@@ -19,7 +19,7 @@ Phase 8: The Final Tribunal (最终审判) - V3.5 Blue Sky Edition
 
 from core.data_models import (
     CompanyData, Decision, TribunalDecision, Confidence,
-    StrategicPricingData, StrategicDefinition, TierLevel
+    StrategicPricingData, StrategicDefinition, TierLevel, GatekeeperData
 )
 from tools.llm import LLMClient
 
@@ -75,8 +75,25 @@ class Tribunal:
             decision = Decision.TRAP
             confidence = Confidence.HIGH
         elif data.physics and data.physics.is_broken_trend:
-            decision = Decision.TRAP
-            confidence = Confidence.HIGH
+            # V3.5: Fortress Accumulation Exemption with VIX Safety Catch
+            is_fortress = (strategic_pricing and 
+                          strategic_pricing.strategic_definition == StrategicDefinition.FORTRESS_ACCUMULATION)
+            is_true_discount = self._parse_true_discount(data)
+            vix_safe = data.gatekeeper and (data.gatekeeper.vix_value is None or data.gatekeeper.vix_value < 30)
+            
+            if is_fortress and is_true_discount and vix_safe:
+                # Override TRAP -> ACCUMULATE (Left-side buying opportunity)
+                decision = Decision.ACCUMULATE
+                confidence = Confidence.MEDIUM
+                print("      🏰 FORTRESS EXEMPTION ACTIVATED: Broken trend overridden (True Discount + VIX Safe)")
+            elif is_fortress and is_true_discount and not vix_safe:
+                # VIX > 30: Too dangerous, downgrade to WATCH
+                decision = Decision.WATCH
+                confidence = Confidence.LOW
+                print("      ⚠️ FORTRESS BLOCKED: True Discount but VIX > 30 (Catching falling knives)")
+            else:
+                decision = Decision.TRAP
+                confidence = Confidence.HIGH
         # FIRE: All checks pass
         elif all(checklist.values()):
             decision = Decision.FIRE
@@ -142,21 +159,26 @@ class Tribunal:
             checklist_results=checklist,
             growth_thesis_intact=checklist['audit_passed'] and checklist['blue_sky'],
             valuation_fit=checklist['strategic_match'],
-            is_true_discount=not (data.physics and data.physics.is_broken_trend)
+            is_true_discount=self._parse_true_discount(data)
         )
 
     def _check_risk_fuse(self, data: CompanyData) -> bool:
         """Check VIX < 30 and macro stability"""
         if data.gatekeeper:
             vix_ok = data.gatekeeper.vix_value is None or data.gatekeeper.vix_value < 30
-            return vix_ok and data.gatekeeper.passed
+            return vix_ok
         return True
 
     def _check_audit_passed(self, data: CompanyData) -> bool:
-        """Check Phase 1 Deep Audit and no insider panic selling"""
+        """V3.5: Check Phase 1 Deep Audit using red flag system (passed if red_flags < 2)"""
         audit_ok = data.deep_audit and data.deep_audit.passed
-        no_insider_selling = not (data.deep_audit and data.deep_audit.insider_selling_risk)
-        return audit_ok and no_insider_selling
+        return audit_ok
+
+    def _parse_true_discount(self, data: CompanyData) -> bool:
+        """V3.5: Parse [DISCOUNT_TYPE: TRUE_DISCOUNT] from Phase 3 Intelligence dislocation_context"""
+        if data.intelligence and data.intelligence.dislocation_context:
+            return "[DISCOUNT_TYPE: TRUE_DISCOUNT]" in data.intelligence.dislocation_context
+        return False
 
     def _check_blue_sky(self, data: CompanyData, pricing: StrategicPricingData) -> bool:
         """Check for second growth curve or TAM expansion"""
@@ -168,10 +190,10 @@ class Tribunal:
         return False
 
     def _check_strategic_match(self, data: CompanyData, pricing: StrategicPricingData) -> bool:
-        """Check Tier 1/2 moat and valuation not overextended"""
+        """Check Tier 1/2 moat and valuation within Business Model safety margin (Green)"""
         if pricing:
             tier_ok = pricing.tier_level in [TierLevel.TIER_1, TierLevel.TIER_2]
-            val_ok = pricing.valuation_status == "Green"
+            val_ok = pricing.valuation_status == "Green"  # 估值在所处 Business Model 的安全边际内
             return tier_ok or val_ok
         # Fallback: shadow audit king makers
         return data.shadow_audit and data.shadow_audit.has_king_maker_clients

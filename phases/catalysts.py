@@ -204,15 +204,17 @@ class CatalystsAnalyzer:
         Identify major catalysts for {ticker} from the provided context based on {context}, 
         categorizing them into:
         1. **Recently Triggered** (Events within the last 30 days that are still driving price action)
-        2. **Upcoming** (Future events in the next 6 months)
+        2. **Upcoming** (Future events in the next 3 to 6 months)
         
         Focus on:
         - Earnings Releases (Past results explaining momentum or future dates)
         - Product Launches / Refresh Cycles
         - Investor Days / Analyst Days
+        - Supply Side Events (Secondary Offerings, Convertible Notes, IPO Lock-up Expiries)
 
-        CRITICAL: The AI should judge the significance. If an event happened 2 weeks ago but was a "game changer", include it as "Recently Triggered". 
-        Focus on 2026 events or high-impact late 2025 milestones that recently concluded.
+        CRITICAL TIMESTAMP GUARDRAIL: The AI must judge the significance and TIMING. 
+        - For Supply Side Events (Lock-ups & Offerings), ONLY include them if they occurred in the **last 30 days** or are scheduled in the **next 3 months**. Ignore events older than 30 days.
+        - For other events, focus on 2026 events or high-impact late 2025 milestones that recently concluded.
 
         Return ONLY a simple list, one event per line.
         CRITICAL: Every event MUST include a specific date or estimated quarter (e.g., "Feb 25, 2025" or "Q3 2025").
@@ -220,10 +222,10 @@ class CatalystsAnalyzer:
         Example:
         - Earnings: Feb 25, 2025 [1]
         - Product Launch: Taser 11 expected Q2 2025 [2]
-        - Investor Day: May 2025 [3]
+        - Supply Side: $500M Convertible Note issued Jan 15, 2025 [3]
         
         Use [ID] citations if possible.
-        CRITICAL: If the context lacks specific event dates or catalysts, output ONLY "N/A". Do not speculate.
+        CRITICAL: If the context lacks specific event dates or catalysts within the allowed timeframe, output ONLY "N/A". Do not speculate.
         """
 
         events_text = self.llm.analyze_text(

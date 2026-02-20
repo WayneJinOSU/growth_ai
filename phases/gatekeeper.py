@@ -116,20 +116,22 @@ class Gatekeeper:
             
         
         # ========== 6. 综合判断 ==========
-        passed = sector_passed and cagr_passed
+        # V3.5 Enhancement: CAGR limit handles dynamically inside DeepAudit
+        passed = sector_passed
         fail_reason = None
         
         if not sector_passed:
             fail_reason = sector_reason
-        elif not cagr_passed:
-            fail_reason = cagr_reason
             
         if not passed:
             print(f"    - Gatekeeper FAILED: {fail_reason}")
         elif vix_panic:
             print("    - Gatekeeper PASSED (with VIX Warning)")
         else:
-            print(f"    - Gatekeeper PASSED for {ticker}")
+            if not cagr_passed:
+                print(f"    - Gatekeeper PASSED for {ticker} (Will rely on Phase 1 Rule of 40 / EPS Checks due to Growth < {config.FUTURE_CAGR_THRESHOLD:.0%})")
+            else:
+                print(f"    - Gatekeeper PASSED for {ticker}")
         
         return GatekeeperData(
             sector_check_passed=sector_passed,
@@ -137,6 +139,7 @@ class Gatekeeper:
             us10y_yield=us10y,
             vix_value=vix,
             future_revenue_cagr_3y=future_cagr,
+            cagr_passed=cagr_passed,
             passed=passed,
             fail_reason=fail_reason
         )
