@@ -79,22 +79,48 @@ class Tribunal:
             decision = Decision.TRAP
             confidence = Confidence.HIGH
         elif data.physics and data.physics.is_broken_trend:
-            # V3.5: Fortress Accumulation Exemption with VIX Safety Catch
+            # V3.5: Broken Trend Exemptions with VIX Safety Catch
+            # Two paths can override a broken trend:
+            # 1. Fortress Accumulation (Tier 1 + cheap, no catalyst needed)
+            # 2. Diamond Setup (strong catalyst + cheap + true discount — maximum conviction)
             is_fortress = (strategic_pricing and 
                           strategic_pricing.strategic_definition == StrategicDefinition.FORTRESS_ACCUMULATION)
+            is_diamond = (strategic_pricing and
+                         strategic_pricing.strategic_definition == StrategicDefinition.DIAMOND_SETUP)
             is_true_discount = self._parse_true_discount(data)
-            vix_safe = data.gatekeeper and (data.gatekeeper.vix_value is None or data.gatekeeper.vix_value < 30)
             
-            if is_fortress and is_true_discount and vix_safe:
+            # VIX Check with Regime Awareness
+            vix_safe = data.gatekeeper and (
+                data.gatekeeper.vix_value is None 
+                or data.gatekeeper.vix_value < 30 
+                or data.gatekeeper.market_status == "OVERSOLD_BOUNCE"
+            )
+            
+            # Stabilization Check (Prevent catching falling knives)
+            # High volume drop closing near the low means NOT stabilized.
+            is_falling_knife = data.physics and data.physics.close_strength is not None and data.physics.relative_volume is not None and (
+                data.physics.close_strength < 0.35 and data.physics.relative_volume > 1.2
+            )
+            
+            if (is_fortress or is_diamond) and is_true_discount and is_falling_knife:
+                decision = Decision.WATCH
+                confidence = Confidence.LOW
+                print("      ⚠️ EXEMPTION BLOCKED: Falling Knife detected (High volume close near low). Wait for stabilization.")
+            elif is_diamond and is_true_discount and vix_safe:
+                # Diamond + True Discount: Broken trend is the buying opportunity
+                decision = Decision.CONVICTION_BUY
+                confidence = Confidence.HIGH
+                print("      💎 DIAMOND EXEMPTION ACTIVATED: Broken trend overridden (Strong Catalyst + True Discount + VIX Safe)")
+            elif is_fortress and is_true_discount and vix_safe:
                 # Override TRAP -> ACCUMULATE (Left-side buying opportunity)
                 decision = Decision.ACCUMULATE
                 confidence = Confidence.MEDIUM
                 print("      🏰 FORTRESS EXEMPTION ACTIVATED: Broken trend overridden (True Discount + VIX Safe)")
-            elif is_fortress and is_true_discount and not vix_safe:
+            elif (is_fortress or is_diamond) and is_true_discount and not vix_safe:
                 # VIX > 30: Too dangerous, downgrade to WATCH
                 decision = Decision.WATCH
                 confidence = Confidence.LOW
-                print("      ⚠️ FORTRESS BLOCKED: True Discount but VIX > 30 (Catching falling knives)")
+                print("      ⚠️ EXEMPTION BLOCKED: True Discount but VIX > 30 without Oversold Bounce. Too dangerous.")
             else:
                 decision = Decision.TRAP
                 confidence = Confidence.HIGH
@@ -179,10 +205,38 @@ class Tribunal:
         return audit_ok
 
     def _parse_true_discount(self, data: CompanyData) -> bool:
-        """V3.5: Parse [DISCOUNT_TYPE: TRUE_DISCOUNT] from Phase 3 Intelligence dislocation_context"""
+        """V3.5: Parse [DISCOUNT_TYPE: TRUE_DISCOUNT] from Phase 3 Intelligence dislocation_context and double verify"""
+        is_true_discount = False
         if data.intelligence and data.intelligence.dislocation_context:
-            return "[DISCOUNT_TYPE: TRUE_DISCOUNT]" in data.intelligence.dislocation_context
-        return False
+            is_true_discount = "[DISCOUNT_TYPE: TRUE_DISCOUNT]" in data.intelligence.dislocation_context
+            
+        if not is_true_discount:
+            return False
+            
+        # Optional Double Confirmation with FMP
+        print("      [Phase 8] True Discount flagged. Verifying with fundamental metrics (Current PE vs 5yr Avg)...")
+        try:
+            from tools.fmp import FMPClient
+            fmp = FMPClient()
+            current_metrics = fmp.get_ratios_ttm(data.ticker)
+            historical_metrics = fmp.get_key_metrics(data.ticker, period='annual', limit=5)
+            
+            if current_metrics and historical_metrics and len(historical_metrics) > 2:
+                current_pe = current_metrics.get('priceEarningsRatioTTM')
+                historical_pes = [m.get('peRatio') for m in historical_metrics if m.get('peRatio') is not None and m.get('peRatio') > 0]
+                
+                if current_pe and historical_pes:
+                    avg_pe = sum(historical_pes) / len(historical_pes)
+                    if current_pe < avg_pe * 0.8:
+                        print(f"      ✅ True Discount Confirmed: Current PE ({current_pe:.1f}) < 80% of 5yr Avg PE ({avg_pe:.1f})")
+                        return True
+                    else:
+                        print(f"      ❌ True Discount Rejected: Current PE ({current_pe:.1f}) is NOT significantly below 5yr Avg ({avg_pe:.1f}). Possible Value Trap.")
+                        return False
+        except Exception as e:
+            print(f"      [Warning] True Discount verification failed or data missing: {e}. Trusting AI logic.")
+            
+        return True
 
     def _check_blue_sky(self, data: CompanyData, pricing: StrategicPricingData) -> bool:
         """Check for second growth curve or TAM expansion"""
@@ -248,7 +302,10 @@ class Tribunal:
         {context}
         
         Requirements:
-        1. Be direct. No intro phrases. Start with the key insight.
+        1. Be direct. No intro phrases. Start with the exact decision pattern:
+           - "**Verdict: CONVICTION BUY (Contrarian).** [Your explanation for broken trend/diamond setup]" 
+           - "**Verdict: FIRE (Momentum).** [Your explanation for 6 gates passing]"
+           - "**Verdict: WATCH/TRAP/ACCUMULATE.** [Your explanation]"
         2. CRITICAL: Include the timing context—why is this decision being made NOW? Mention specific upcoming events or recent price action/audit findings with their timeframes.
         3. Explain the expected duration or critical window for the thesis.
         

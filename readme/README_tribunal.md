@@ -30,14 +30,20 @@
 ### 一票否决 (TRAP)
 - `audit_passed = False` → **TRAP** (High Confidence)
 
-### 趋势破位判断 (V3.5 Fortress 豁免)
-- `physics.is_broken_trend = True` 时，进入三级判断：
+### 趋势破位判断 (V3.5 双重豁免)
+- `physics.is_broken_trend = True` 时，进入分级判断：
+- **两条路径**可以 override 破位 TRAP：
+  1. **💎 Diamond Setup** — 强催化 + 低估 + 真折价 → 最大确信度买入
+  2. **🏰 Fortress** — 深护城河 + 低估 + 真折价 → 左侧建仓
 
 | 条件 | 结果 | 原因 |
 |------|------|------|
-| Fortress + True Discount + **VIX < 30** | 🏰 **ACCUMULATE** (Medium) | 左侧建仓机会，真折价 + 深护城河 |
-| Fortress + True Discount + **VIX ≥ 30** | ⚠️ **WATCH** (Low) | VIX 安全栓：极端恐慌不接飞刀 |
+| **💎 Diamond + True Discount + VIX < 30** | 💎 **CONVICTION_BUY** (High) | 强催化 + 真折价，破位是最佳买入点 |
+| 🏰 Fortress + True Discount + **VIX < 30** | 🏰 **ACCUMULATE** (Medium) | 左侧建仓机会，真折价 + 深护城河 |
+| (Diamond/Fortress) + True Discount + **VIX ≥ 30** | ⚠️ **WATCH** (Low) | VIX 安全栓：极端恐慌不接飞刀 |
 | 其他情况 | 🚩 **TRAP** (High) | 原始逻辑，破位即熔断 |
+
+> **设计原因：** PLTR 类标的经常出现"基本面完美 + 估值回调导致 SMA50 破位"的情况。如果 Phase 6 已判定 Diamond Setup (强催化 + 低估) 且 Phase 3 确认 True Discount (非基本面恶化)，此时技术面破位恰恰是最佳左侧买入点，不应被系统误杀。
 
 > **True Discount 解析：** 从 Phase 3 Intelligence 的 `dislocation_context` 中程序化提取 `[DISCOUNT_TYPE: TRUE_DISCOUNT]` 标签
 

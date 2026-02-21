@@ -71,6 +71,7 @@ class GatekeeperData(BaseModel):
     macro_mode: MacroMode
     us10y_yield: Optional[float] = None
     vix_value: Optional[float] = None
+    market_status: Optional[str] = None  # E.g. "NORMAL", "SPIKING", "OVERSOLD_BOUNCE"
     future_revenue_cagr_3y: Optional[float] = None  # V3.5 New
     cagr_passed: bool = True # Track raw check before deeper evaluation
     passed: bool

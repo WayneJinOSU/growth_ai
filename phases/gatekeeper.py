@@ -15,6 +15,7 @@ from tools.fmp import FMPClient
 from tools.search import SearchClient
 from tools.yahoo import YahooClient
 from core.data_models import GatekeeperData, MacroMode, CompanyData
+from datetime import datetime, timedelta
 import config
 
 
@@ -47,6 +48,34 @@ class Gatekeeper:
             return MacroMode.TIGHT
         else:
             return MacroMode.NEUTRAL
+
+    def _determine_vix_regime(self, current_vix: Optional[float]) -> str:
+        """
+        根据获取的 ^VIX 历史判定市场情绪是 SPIKING (恐慌飙升) 还是 COOLING (超卖反弹)
+        """
+        if current_vix is None:
+            return "NORMAL"
+            
+        to_date = datetime.now().strftime("%Y-%m-%d")
+        from_date = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
+        
+        try:
+            history = self.fmp.get_historical_price_daily('^VIX', from_date, to_date)
+            if not history or len(history) < 5:
+                return "NORMAL"
+                
+            vix_5d_ago = history[-5].get('close', current_vix)
+            
+            if current_vix > vix_5d_ago * 1.2 and current_vix > 20:
+                print(f"      [VIX Regime] SPIKING: {vix_5d_ago:.2f} -> {current_vix:.2f} in 5 Days")
+                return "SPIKING"
+            if current_vix < vix_5d_ago * 0.9 and current_vix > 25:
+                print(f"      [VIX Regime] COOLING (Oversold Bounce): {vix_5d_ago:.2f} -> {current_vix:.2f} in 5 Days")
+                return "OVERSOLD_BOUNCE"
+        except Exception as e:
+            print(f"      [Warning] Error fetching historical VIX: {e}")
+            
+        return "NORMAL"
 
     def _check_sector(self, profile: Optional[Dict]) -> tuple[bool, str]:
         """
@@ -84,10 +113,14 @@ class Gatekeeper:
         macro_mode = self._determine_macro_mode(us10y)
         print(f"      Macro Mode: {macro_mode.value}")
         
-        # ========== 3. VIX 熔断检查 ==========
+        # ========== 3. VIX 熔断检查 & 情绪测算 ==========
+        market_status = self._determine_vix_regime(vix)
         vix_panic = vix is not None and vix > self.VIX_PANIC_THRESHOLD
         if vix_panic:
-            print(f"      ⚠️ VIX PANIC MODE: VIX {vix:.2f} > {self.VIX_PANIC_THRESHOLD}")
+            if market_status == "OVERSOLD_BOUNCE":
+                print(f"      ⚠️ VIX SAFE-MODE ON (Oversold Bounce): VIX is High ({vix:.2f}) but Cooling Down")
+            else:
+                print(f"      ⚠️ VIX PANIC MODE: VIX {vix:.2f} > {self.VIX_PANIC_THRESHOLD}")
         
         # ========== 4. 行业过滤 ==========
         print("    - Checking sector blacklist...")
@@ -138,6 +171,7 @@ class Gatekeeper:
             macro_mode=macro_mode,
             us10y_yield=us10y,
             vix_value=vix,
+            market_status=market_status,
             future_revenue_cagr_3y=future_cagr,
             cagr_passed=cagr_passed,
             passed=passed,
