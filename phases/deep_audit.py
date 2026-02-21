@@ -14,6 +14,7 @@ from tools.yahoo import YahooClient
 from tools.llm import LLMClient
 from tools.search import SearchClient
 from core.data_models import DeepAuditData, BusinessModel, IdentifierData, GatekeeperData
+from tools.lang import get_lang_instruction
 import config
 import re
 
@@ -162,6 +163,7 @@ class DeepAudit:
         identifier_data = data.identifier
         gatekeeper_data = data.gatekeeper
         print(f"  [Phase 1] Deep Audit for {ticker} (V3.5)...")
+        self._lang_instruction = get_lang_instruction(data)
         
         metrics = DeepAuditData()
         
@@ -608,6 +610,8 @@ class DeepAudit:
                 - "PASS - <brief reason>" if routine (10b5-1, tax, option exercise, small %, profit taking after rally)
                 - "WARNING - <brief reason>" if ambiguous but not alarming
                 - "FAIL - <brief reason>" if panic selling, capitulation, or unexplained large disposal
+                
+                {self._lang_instruction}
                 """
                 
                 decision = self.llm.analyze_text(
@@ -721,3 +725,55 @@ class DeepAudit:
             print(f"    - Deep Audit FAILED (Red Flags >= 2): {metrics.fail_reason}")
 
 deepAudit = DeepAudit()  # default clients; main.py passes explicit clients
+
+if __name__ == "__main__":
+    from core.data_models import CompanyData, GatekeeperData, MacroMode
+
+    ticker = "AXON"
+    print(f"\n{'='*60}")
+    print(f"  Deep Audit Standalone Test: {ticker}")
+    print(f"{'='*60}\n")
+
+    # 构造最小 CompanyData
+    company = CompanyData(
+        ticker=ticker,
+        gatekeeper=GatekeeperData(
+            sector_check_passed=True,
+            macro_mode=MacroMode.NEUTRAL,
+            passed=True
+        )
+    )
+
+    audit = DeepAudit()
+
+    # 1) 商业模式识别
+    identifier = audit.identify_business_model(company)
+    company.identifier = identifier
+    print(f"\n  Business Model: {identifier.business_model.value}")
+    print(f"  KPIs: {identifier.specific_kpis}")
+
+    # 2) 深度审计
+    result = audit.analyze(company)
+    company.deep_audit = result
+
+    print(f"\n{'='*60}")
+    print(f"  RESULTS")
+    print(f"{'='*60}")
+    print(f"  Passed:        {result.passed}")
+    print(f"  Fail Reason:   {result.fail_reason or 'None'}")
+    print(f"  Red Flags:     {result.red_flags}")
+    print(f"  Rev CAGR:      {f'{result.revenue_cagr_ny:.1%}' if result.revenue_cagr_ny else 'N/A'}")
+    print(f"  EPS CAGR:      {f'{result.eps_cagr_ny:.1%}' if result.eps_cagr_ny else 'N/A'}")
+    print(f"  Q/Q Growth:    {f'{result.revenue_growth_current_q:.1%}' if result.revenue_growth_current_q else 'N/A'}")
+    print(f"  PEG:           {f'{result.peg_ratio:.2f}' if result.peg_ratio else 'N/A'}")
+    print(f"  Rule of 40:    {f'{result.rule_of_40:.1%}' if result.rule_of_40 else 'N/A'}")
+    print(f"  SBC/Rev:       {f'{result.sbc_revenue_ratio:.1%}' if result.sbc_revenue_ratio else 'N/A'}")
+    print(f"  Insider Risk:  {result.insider_selling_risk} (Score: {result.insider_score}/3)")
+    print(f"  Insider Msg:   {result.insider_selling_message or 'Clean'}")
+    if result.insider_details:
+        d = result.insider_details
+        print(f"    Operator Sells: {d.get('operator_sells', 0)}")
+        print(f"    Max Intensity:  {d.get('max_intensity', 0):.1%}")
+        print(f"    6M Price Ret:   {d.get('price_return_6m', 0):.1%}")
+        print(f"    Into Weakness:  {d.get('selling_into_weakness', False)}")
+    print(f"{'='*60}\n")

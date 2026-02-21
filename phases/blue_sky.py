@@ -15,6 +15,7 @@ from tools.search_helpers import SearchHelper
 from tools.json_parser import JSONParser
 from datetime import datetime
 from core.data_models import BlueSkyPhaseData, BlueSkyData, GatekeeperData, MacroMode, BusinessModel, DeepAuditData
+from tools.lang import get_lang_instruction
 
 
 class BlueSkyAnalyzer:
@@ -67,6 +68,7 @@ class BlueSkyAnalyzer:
         business_model = data.identifier.business_model if data.identifier else None
 
         result = BlueSkyPhaseData()
+        self._lang_instruction = get_lang_instruction(data)
 
         print(f"  [Phase 4] Analyzing Blue Sky & Valuation for {ticker}...")
 
@@ -116,6 +118,7 @@ class BlueSkyAnalyzer:
         - Allow multi-paragraph deep dive; do not be overly concise.
         - Cite specific sources using [ID] format (e.g. "R&D budget increased 15% [2]").
         - CRITICAL: If the context lacks specific R&D or product information, output ONLY "N/A". Do not speculate.
+        {self._lang_instruction}
         """
         blue_sky.rnd_effectiveness = self.llm.analyze_text(prompt_rnd).strip()
         print(f"      R&D Effectiveness: {blue_sky.rnd_effectiveness[:100]}...")
@@ -142,6 +145,7 @@ class BlueSkyAnalyzer:
             "tam_expansion": "Your detailed, multi-paragraph deep dive analysis goes here (string). Cite sources using [ID] format. If the context lacks specific TAM data, output ONLY 'N/A'.",
             "is_strong_second_curve": true or false
         }}
+        {self._lang_instruction}
         """
         tam_result = self.llm.analyze_text(prompt_tam).strip()
         tam_data = JSONParser.parse_llm_json(tam_result, default={})

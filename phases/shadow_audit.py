@@ -15,6 +15,7 @@ from tools.llm import LLMClient
 from tools.search_helpers import SearchHelper
 from datetime import datetime
 from core.data_models import ShadowAuditData, BusinessModel
+from tools.lang import get_lang_instruction
 
 class ShadowAudit:
     """
@@ -39,6 +40,7 @@ class ShadowAudit:
         print(f"  [Phase 2] Shadow Audit for {ticker} (V3.5)...")
         
         result = ShadowAuditData()
+        self._lang_instruction = get_lang_instruction(data)
         bm_value = business_model.value if business_model else None
         if references is None:
             references = []
@@ -153,6 +155,7 @@ class ShadowAudit:
                     - List each King Maker relationship found, noting partner name, nature (customer/supplier/partner), and evidence strength.
                     - Use [ID] citations for every claim.
                     - If no significant relationships are found, reply exactly with "None". Do not explain why, do not speculate.
+                    {self._lang_instruction}
                     """
                     
                     try:
@@ -261,6 +264,7 @@ class ShadowAudit:
                 
                 CRITICAL: If detected, specify the exact quarters or dates where this behavior was observed.
                 If the context lacks specific guidance or earnings data to make a determination, reply "INCONCLUSIVE". Do not speculate.
+                {self._lang_instruction}
                 """
                 
                 try:

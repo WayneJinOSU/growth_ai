@@ -15,6 +15,11 @@ if not OPENAI_API_KEY:
 if not TAVILY_API_KEY:
     print("Warning: TAVILY_API_KEY not found in environment variables.")
 
+# ========== Report Language ==========
+# "en" = English output (LLM + Report Structure)
+# "zh" = Chinese output (中文输出)
+REPORT_LANGUAGE = os.getenv("REPORT_LANGUAGE", "en")
+
 # ========== MGP Strategy Parameters V3.5 ==========
 
 # --- Phase 0: Gatekeeper ---

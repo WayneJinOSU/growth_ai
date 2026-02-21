@@ -22,6 +22,7 @@ from tools.search_helpers import SearchHelper
 from tools.json_parser import JSONParser
 from datetime import datetime
 from core.data_models import CatalystData, SearchReference
+from tools.lang import get_lang_instruction
 
 
 class CatalystsAnalyzer:
@@ -76,6 +77,7 @@ class CatalystsAnalyzer:
         references = data.references
         deep_search = data.deep_search
         business_model = data.identifier.business_model.value if data.identifier else None
+        self._lang_instruction = get_lang_instruction(data)
         result = CatalystData()
 
         # ========== 1. Primary: Thematic Waves ==========
@@ -169,6 +171,7 @@ class CatalystsAnalyzer:
             "rationale": "N/A"
         }}
         Do not speculate or fabricate connections.
+        {self._lang_instruction}
         """
 
         response = self.llm.analyze_text(prompt, system_prompt="You are a strategic macro analyst. Respond strictly with JSON.").strip()
@@ -266,6 +269,7 @@ class CatalystsAnalyzer:
         Output: 1-2 paragraphs. Direct analysis only. No headers.
         Use [ID] citations where appropriate.
         CRITICAL: If the events lack sufficient detail for meaningful analysis, output ONLY "N/A". Do not speculate.
+        {self._lang_instruction}
         """
 
         analysis = self.llm.analyze_text(prompt_analysis).strip()
@@ -308,6 +312,7 @@ class CatalystsAnalyzer:
         - Be provocative but grounded in data.
         - IMPORTANT: Cite sources using [ID] format in the perception text.
         - CRITICAL: If the context lacks specific data to identify a variant perception, output "has_variant_perception": false and "perception": "N/A". Do not speculate.
+        {self._lang_instruction}
         """
         response = self.llm.analyze_text(prompt, system_prompt="You are a contrarian analyst. Respond strictly with JSON.").strip()
         vp_data = JSONParser.parse_llm_json(response, default={})

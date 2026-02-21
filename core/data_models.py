@@ -233,6 +233,7 @@ class CompanyData(BaseModel):
     # Runtime config (set by main.py)
     deep_search: bool = False
     force_deep_dive: bool = False
+    report_language: str = "en"  # "en" or "zh"
 
     # Cached shared data (set once by main.py, read by all Phases)
     company_profile: Optional[Dict[str, Any]] = None

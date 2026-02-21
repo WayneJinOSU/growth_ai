@@ -11,6 +11,7 @@ from tools.search import SearchClient
 from tools.search_helpers import SearchHelper
 from datetime import datetime
 from core.data_models import IntelligenceData, IdentifierData, SearchReference
+from tools.lang import get_lang_instruction
 
 
 class Intelligence:
@@ -39,6 +40,7 @@ class Intelligence:
         references = data.references
         deep_search = data.deep_search
         business_model = data.identifier.business_model.value if data.identifier else None
+        self._lang_instruction = get_lang_instruction(data)
         result = IntelligenceData()
 
         deep_context = self._deep_enrich(ticker, references, business_model=business_model) if deep_search else ""
@@ -144,6 +146,7 @@ class Intelligence:
         - Do not limit length; be thorough.
         - Cite sources using [ID] format (e.g. "CEO stated growth is slowing [1]").
         - CRITICAL: If the context lacks specific guidance or earnings data, output ONLY "N/A". Do not speculate.
+        {self._lang_instruction}
         """
         result = self.llm.analyze_text(prompt).strip()
         print(f"      Result: {result[:100]}...")
@@ -173,6 +176,7 @@ class Intelligence:
         - Direct answer only. No "Based on..." or intro text.
         - IMPORTANT: Cite sources using [ID] format at the end of claims.
         - CRITICAL: If the context lacks specific relevant information, output ONLY "N/A". Do not speculate.
+        {self._lang_instruction}
         """
         result = self.llm.analyze_text(prompt).strip()
         print(f"      Result: {result[:100]}...")
@@ -203,6 +207,7 @@ class Intelligence:
         - Direct answer only. No "Based on..." or intro text.
         - Cite sources using [ID] format.
         - CRITICAL: If the context lacks specific insider transaction data, output ONLY "N/A". Do not speculate.
+        {self._lang_instruction}
         """
         result = self.llm.analyze_text(prompt).strip()
         print(f"      Result: {result[:100]}...")
@@ -235,6 +240,7 @@ class Intelligence:
         - Distinguish macro vs. company-specific issues.
         - Cite sources using [ID] format.
         - CRITICAL: If the context lacks specific price action data, output ONLY "N/A". Do not speculate.
+        {self._lang_instruction}
         """
         result = self.llm.analyze_text(prompt).strip()
         print(f"      Result: {result[:100]}...")

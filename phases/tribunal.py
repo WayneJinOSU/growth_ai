@@ -22,6 +22,8 @@ from core.data_models import (
     StrategicPricingData, StrategicDefinition, TierLevel, GatekeeperData
 )
 from tools.llm import LLMClient
+from tools.lang import get_lang_instruction
+
 
 
 class Tribunal:
@@ -249,6 +251,8 @@ class Tribunal:
         1. Be direct. No intro phrases. Start with the key insight.
         2. CRITICAL: Include the timing context—why is this decision being made NOW? Mention specific upcoming events or recent price action/audit findings with their timeframes.
         3. Explain the expected duration or critical window for the thesis.
+        
+        {get_lang_instruction(data)}
         """
         
         try:

@@ -21,6 +21,7 @@ from tools.fmp import FMPClient
 from tools.json_parser import JSONParser
 from core.data_models import PhysicsData
 import config
+from tools.lang import get_lang_instruction
 
 class Physics:
     """
@@ -31,8 +32,8 @@ class Physics:
         self.fmp = fmp_client or FMPClient()
         self.llm = llm_client
 
-    def analyze(self, data) -> PhysicsData:
-        ticker = data.ticker
+    def analyze(self, data_obj) -> PhysicsData:
+        ticker = data_obj.ticker
         print(f"  [Phase 7] Physics VPA Analysis for {ticker} (V3.5 Blue Sky)...")
         
         # 1. Fetch Raw Data (OHLCV)
@@ -55,7 +56,7 @@ class Physics:
         # 4. LLM-Enhanced Analysis (Physical Dynamics)
         if self.llm:
             print(f"      [AI] Performing Physical Dynamics analysis with Gemini-3-Pro...")
-            ai_data = self._analyze_with_ai(ticker)
+            ai_data = self._analyze_with_ai(ticker, lang_instruction=get_lang_instruction(data_obj))
             if ai_data:
                 data.ai_analysis = ai_data.get('analysis')
                 data.ai_conclusion = ai_data.get('conclusion')
@@ -122,7 +123,7 @@ class Physics:
         data.details = f"RVol {latest['rvol']:.1f}x | Range {latest['range_pct']*100:.1f}% | Close Strength {latest['close_loc']:.1%}"
         return data
 
-    def _analyze_with_ai(self, ticker: str) -> Optional[Dict]:
+    def _analyze_with_ai(self, ticker: str, lang_instruction: str = "") -> Optional[Dict]:
         # Prepare data snippet for LLM
         # Last 40 days is usually enough for daily chart context
         end_date = datetime.now().strftime("%Y-%m-%d")
@@ -145,8 +146,9 @@ class Physics:
         {{
             "conclusion": "Ignition, Broken Trend, Accumulation, Divergence, Volatility Trap, or Neutral",
             "recommendation": "Strong Buy, Buy, Wait, Observe, or Sell",
-            "analysis": "Detailed analysis in English using physical metaphors"
+            "analysis": "Detailed analysis using physical metaphors"
         }}
+        {lang_instruction}
         """
         
         response = self.llm.analyze_text(prompt, system_prompt="You are a senior technical analyst. Respond strictly with JSON.")

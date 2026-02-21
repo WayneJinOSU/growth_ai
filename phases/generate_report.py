@@ -1,8 +1,88 @@
 from core.data_models import CompanyData
 from datetime import datetime
 
-def generate_report_content_v35(data: CompanyData) -> str:
-    """Generate V3.5 Blue Sky Report - Enhanced with detailed analysis"""
+# ========== Bilingual Label Map ==========
+_LABELS = {
+    # Report Header
+    "report_title":        {"en": "MGP V3.5 Blue Sky Report", "zh": "MGP V3.5 蓝天报告"},
+    "date":                {"en": "Date", "zh": "日期"},
+    "verdict":             {"en": "Verdict", "zh": "裁定"},
+    "confidence":          {"en": "Confidence", "zh": "置信度"},
+    "strategic_def":       {"en": "Strategic Definition", "zh": "战略定义"},
+    "physics":             {"en": "Physics", "zh": "技术形态"},
+    "price":               {"en": "Price", "zh": "价格"},
+    "market_cap":          {"en": "Market Cap", "zh": "市值"},
+    # Phase Titles
+    "exec_summary":        {"en": "Executive Summary", "zh": "执行摘要"},
+    "ph0":                 {"en": "Phase 0: The Gatekeeper", "zh": "Phase 0: 门槛熔断"},
+    "ph1":                 {"en": "Phase 1: Deep Audit", "zh": "Phase 1: 深度审计"},
+    "ph2":                 {"en": "Phase 2: Shadow Audit", "zh": "Phase 2: 影子验证"},
+    "ph3":                 {"en": "Phase 3: Intelligence", "zh": "Phase 3: 软性情报"},
+    "ph4":                 {"en": "Phase 4: Blue Sky", "zh": "Phase 4: 蓝天展望"},
+    "ph5":                 {"en": "Phase 5: Catalysts & Waves", "zh": "Phase 5: 势能与催化"},
+    "ph6":                 {"en": "Phase 6: Strategic Pricing", "zh": "Phase 6: 战略定价"},
+    "ph7":                 {"en": "Phase 7: Physics VPA", "zh": "Phase 7: 量价物理学"},
+    "ph8":                 {"en": "Phase 8: Final Tribunal", "zh": "Phase 8: 最终审判"},
+    # Common
+    "result":              {"en": "Result", "zh": "结果"},
+    "fail_reason":         {"en": "Fail Reason", "zh": "失败原因"},
+    "signal":              {"en": "Signal", "zh": "信号"},
+    "passed":              {"en": "Passed", "zh": "通过"},
+    "failed":              {"en": "Failed", "zh": "未通过"},
+    "none":                {"en": "None", "zh": "无"},
+    # Deep Audit (Phase 1)
+    "detailed_metrics":    {"en": "Detailed Metrics", "zh": "详细指标"},
+    "insider_breakdown":   {"en": "Insider Selling Breakdown (Institutional-Grade)", "zh": "内部人抛售分析（机构级）"},
+    "insider_note":        {"en": "Insider Note", "zh": "内部人备注"},
+    # Shadow Audit (Phase 2)
+    "logic_evidence":      {"en": "Logic & Evidence", "zh": "逻辑与证据"},
+    # Intelligence (Phase 3)
+    "mgmt_integrity":      {"en": "Management Integrity", "zh": "管理层诚信"},
+    "competitive_moat":    {"en": "Competitive Moat", "zh": "竞争护城河"},
+    "insider_activity":    {"en": "Insider Activity", "zh": "内部人交易"},
+    "dislocation_ctx":     {"en": "Dislocation Context", "zh": "价格错杀分析"},
+    "kpi_table":           {"en": "Key Performance Indicators", "zh": "关键绩效指标"},
+    # Blue Sky (Phase 4)
+    "tam_logic":           {"en": "TAM Explosion Logic", "zh": "TAM 扩张逻辑"},
+    "second_curve":        {"en": "Second Growth Curve (R&D Effectiveness)", "zh": "第二增长曲线（研发效能）"},
+    "strong_second_curve": {"en": "Strong Second Curve Confirmed", "zh": "强第二曲线确认"},
+    # Catalysts (Phase 5)
+    "thematic_wave":       {"en": "Primary: Thematic Wave", "zh": "一级催化：全行业势能"},
+    "hard_events":         {"en": "Secondary: Hard Events", "zh": "二级催化：硬事件"},
+    "analysis":            {"en": "Analysis", "zh": "分析"},
+    "supp_signals":        {"en": "Supplementary Signals", "zh": "补充信号"},
+    "upcoming_events":     {"en": "Upcoming Events", "zh": "即将到来的事件"},
+    "wave":                {"en": "Wave", "zh": "浪潮"},
+    "strength":            {"en": "Strength", "zh": "强度"},
+    "variant_perception":  {"en": "Variant Perception", "zh": "预期差"},
+    "coattail_effect":     {"en": "Coattail Effect", "zh": "跟风效应"},
+    # Strategy (Phase 6)
+    "step1_val_scrub":     {"en": "Step 1: Valuation Scrub", "zh": "步骤 1：估值清洗"},
+    "step2_fortress":      {"en": "Step 2: Fortress Test (Tier Level)", "zh": "步骤 2：堡垒测试（层级）"},
+    "step3_bluesky":       {"en": "Step 3: Blue Sky Re-Rating", "zh": "步骤 3：蓝天重估"},
+    "step4_matrix":        {"en": "Step 4: Executive Matrix", "zh": "步骤 4：决策矩阵"},
+    # Physics (Phase 7)
+    "tech_indicators":     {"en": "Technical Indicators", "zh": "技术指标"},
+    "signal_analysis":     {"en": "Signal Analysis", "zh": "信号分析"},
+    "ai_dynamics":         {"en": "🌌 AI Physical Dynamics Analysis", "zh": "🌌 AI 物理动力学分析"},
+    "conclusion":          {"en": "Conclusion", "zh": "结论"},
+    "recommendation":      {"en": "Recommendation", "zh": "建议"},
+    # Tribunal (Phase 8)
+    "core_judgments":       {"en": "Core Judgments", "zh": "核心判定"},
+    "checklist":           {"en": "60-Second Checklist", "zh": "60 秒检查清单"},
+    "macro_val":           {"en": "Macro-Adjusted Valuation", "zh": "宏观调整估值"},
+    # Footer
+    "references":          {"en": "References & Sources", "zh": "参考来源"},
+    "appendix":            {"en": "Appendix: Core Terminology", "zh": "附录：核心术语"},
+    "generated_by":        {"en": "Generated by MGP V3.5 Blue Sky Engine", "zh": "由 MGP V3.5 蓝天引擎生成"},
+}
+
+def _L(key: str, lang: str) -> str:
+    """Get label in given language, fallback to English."""
+    return _LABELS.get(key, {}).get(lang, _LABELS.get(key, {}).get("en", key))
+
+def generate_report_content_v35(data: CompanyData, lang: str = "en") -> str:
+    """Generate V3.5 Blue Sky Report - Bilingual (en/zh)"""
     decision = data.tribunal.decision.value if data.tribunal else "N/A"
     
     # Strategic Definition
@@ -38,7 +118,7 @@ def generate_report_content_v35(data: CompanyData) -> str:
         if da.insider_details:
             d = da.insider_details
             insider_sub = f"""
-#### Insider Selling Breakdown (Institutional-Grade)
+#### {_L("insider_breakdown", lang)}
 | Dimension | Value |
 |-----------|-------|
 | Total Sells (Form 4) | {d.get('total_sells', 'N/A')} |
@@ -51,10 +131,10 @@ def generate_report_content_v35(data: CompanyData) -> str:
 | **LLM Verdict** | **{d.get('verdict', 'N/A')}** |
 """
         elif da.insider_selling_message:
-            insider_sub = f"\n> **Insider Note:** {da.insider_selling_message}\n"
+            insider_sub = f"\n> **{_L('insider_note', lang)}:** {da.insider_selling_message}\n"
         
         deep_audit_details = f"""
-### Detailed Metrics
+### {_L("detailed_metrics", lang)}
 | Metric | Value | Formula/Source |
 |--------|-------|----------------|
 | Revenue CAGR (N-Year) | {f"{da.revenue_cagr_ny:.1%}" if da.revenue_cagr_ny is not None else "N/A"} | (Latest Rev / Oldest Rev)^(1/N) - 1 |
@@ -79,7 +159,7 @@ def generate_report_content_v35(data: CompanyData) -> str:
     if data.shadow_audit:
         sa = data.shadow_audit
         shadow_audit_details = f"""
-### Logic & Evidence
+### {_L("logic_evidence", lang)}
 - **LinkedIn Hiring Audit:** {sa.linkedin_hiring_audit or "Not checked"}
 - **Customer Quality:** {sa.customer_quality_audit or "Not checked"}
 - **Marketing Efficiency:** {sa.marketing_efficiency or "Not checked"}
@@ -96,19 +176,19 @@ def generate_report_content_v35(data: CompanyData) -> str:
         kpi_md = ""
         if intel.kpi_values:
             kpi_lines = [f"| {k} | {v} |" for k, v in intel.kpi_values.items()]
-            kpi_md = "\n### Key Performance Indicators\n| KPI | Value |\n|-----|-------|\n" + "\n".join(kpi_lines)
+            kpi_md = f"\n### {_L('kpi_table', lang)}\n| KPI | Value |\n|-----|-------|\n" + "\n".join(kpi_lines)
         
         intelligence_details = f"""
-### Management Integrity
+### {_L("mgmt_integrity", lang)}
 {intel.management_integrity or "N/A"}
 
-### Competitive Moat
+### {_L("competitive_moat", lang)}
 {intel.product_moat or "N/A"}
 
-### Insider Activity
+### {_L("insider_activity", lang)}
 {intel.insider_activity or "N/A"}
 
-### Dislocation Context
+### {_L("dislocation_ctx", lang)}
 {intel.dislocation_context or "N/A"}
 {kpi_md}
 """
@@ -118,13 +198,13 @@ def generate_report_content_v35(data: CompanyData) -> str:
     if data.blue_sky_phase and data.blue_sky_phase.blue_sky:
         bs = data.blue_sky_phase.blue_sky
         blue_sky_details = f"""
-### TAM Explosion Logic
+### {_L("tam_logic", lang)}
 {bs.tam_expansion or "N/A"}
 
-### Second Growth Curve (R&D Effectiveness)
+### {_L("second_curve", lang)}
 {bs.rnd_effectiveness or "N/A"}
 
-- **Strong Second Curve Confirmed:** {"✅ Yes" if bs.is_strong_second_curve else "No"}
+- **{_L("strong_second_curve", lang)}:** {"✅ Yes" if bs.is_strong_second_curve else "No"}
 """
 
     # Build Catalysts & Waves Details (Phase 5)
@@ -135,19 +215,19 @@ def generate_report_content_v35(data: CompanyData) -> str:
         wave_strength = cat.wave_strength or "N/A"
         events = ", ".join(cat.upcoming_events) if cat.upcoming_events else "N/A"
         catalysts_details = f"""
-### Primary: Thematic Wave (全行业势能)
-**Wave:** {thematic_wave}
-**Strength:** {wave_strength}
+### {_L("thematic_wave", lang)}
+**{_L("wave", lang)}:** {thematic_wave}
+**{_L("strength", lang)}:** {wave_strength}
 
-### Secondary: Hard Events
-**Upcoming Events:** {events}
+### {_L("hard_events", lang)}
+**{_L("upcoming_events", lang)}:** {events}
 
-**Analysis:**
+**{_L("analysis", lang)}:**
 {cat.catalyst_analysis or "N/A"}
 
-### Supplementary Signals
-- **Variant Perception:** {cat.variant_perception or "N/A"}
-- **Coattail Effect:** {cat.coattail_effect or "N/A"}
+### {_L("supp_signals", lang)}
+- **{_L("variant_perception", lang)}:** {cat.variant_perception or "N/A"}
+- **{_L("coattail_effect", lang)}:** {cat.coattail_effect or "N/A"}
 """
 
     # Build Strategic Pricing Details (Phase 6)
@@ -155,19 +235,19 @@ def generate_report_content_v35(data: CompanyData) -> str:
     if data.strategic_pricing:
         sp = data.strategic_pricing
         strategy_details = f"""
-### Step 1: Valuation Scrub
+### {_L("step1_val_scrub", lang)}
 - **Adjusted PE:** {f"{sp.adjusted_pe:.1f}" if sp.adjusted_pe is not None else "N/A"}
 - **Reason:** {sp.adjustment_reason or "No adjustment"}
 
-### Step 2: Fortress Test (Tier Level)
+### {_L("step2_fortress", lang)}
 **Tier:** {sp.tier_level.value if sp.tier_level else "N/A"}
 **Rationale:** {sp.tier_rationale or "N/A"}
 
-### Step 3: Blue Sky Re-Rating
+### {_L("step3_bluesky", lang)}
 **Triggered:** {"✅ Yes (PEG limit relaxed to 2.5)" if sp.blue_sky_triggered else "No"}
 **PEG Limit:** {sp.peg_limit}
 
-### Step 4: Executive Matrix
+### {_L("step4_matrix", lang)}
 | Dimension | Value |
 |-----------|-------|
 | Catalyst Strength | {sp.catalyst_strength or "N/A"} |
@@ -181,7 +261,7 @@ def generate_report_content_v35(data: CompanyData) -> str:
     if data.physics:
         p = data.physics
         physics_details = f"""
-### Technical Indicators
+### {_L("tech_indicators", lang)}
 | Indicator | Value | Condition |
 |-----------|-------|-----------|
 | Current Price | ${(p.current_price if p.current_price else 0):.2f} | - |
@@ -195,7 +275,7 @@ def generate_report_content_v35(data: CompanyData) -> str:
 | Days Below SMA20 | {p.days_below_sma20} | 连续跌破天数 |
 | Days Below SMA50 | {p.days_below_sma50} | 连续跌破天数 |
 
-### Signal Analysis
+### {_L("signal_analysis", lang)}
 | Form | Feature | Meaning | Status |
 |------|---------|---------|--------|
 | 📦 Accumulation | Range < 2% + RVol > 1.5 | Quiet Accumulation | {"✅ DETECTED" if p.is_accumulation else "NOT MET"} |
@@ -206,9 +286,9 @@ def generate_report_content_v35(data: CompanyData) -> str:
         
         if p.ai_analysis:
             physics_details += f"""
-### 🌌 AI Physical Dynamics Analysis
-**Conclusion:** {p.ai_conclusion}
-**Recommendation:** {p.ai_recommendation}
+### {_L("ai_dynamics", lang)}
+**{_L("conclusion", lang)}:** {p.ai_conclusion}
+**{_L("recommendation", lang)}:** {p.ai_recommendation}
 
 {p.ai_analysis}
 """
@@ -260,37 +340,37 @@ def generate_report_content_v35(data: CompanyData) -> str:
         references_md = "No external references cited."
 
 
-    content = f"""# MGP V3.5 Blue Sky Report: {data.ticker}{f" — {data.company_name}" if data.company_name else ""}
-**Date:** {datetime.now().strftime("%Y-%m-%d")}
-**Verdict:** {decision} ({data.tribunal.confidence.value if data.tribunal else "N/A"} Confidence)
-**Strategic Definition:** {strategic_def or "N/A"}
-**Physics:** {physics_status}
-**Price:** ${(data.current_price if data.current_price else 0):.2f} | **Market Cap:** {f"${data.market_cap/1e9:.1f}B" if data.market_cap else "N/A"}
+    content = f"""# {_L("report_title", lang)}: {data.ticker}{f" — {data.company_name}" if data.company_name else ""}
+**{_L("date", lang)}:** {datetime.now().strftime("%Y-%m-%d")}
+**{_L("verdict", lang)}:** {decision} ({data.tribunal.confidence.value if data.tribunal else "N/A"} {_L("confidence", lang)})
+**{_L("strategic_def", lang)}:** {strategic_def or "N/A"}
+**{_L("physics", lang)}:** {physics_status}
+**{_L("price", lang)}:** ${(data.current_price if data.current_price else 0):.2f} | **{_L("market_cap", lang)}:** {f"${data.market_cap/1e9:.1f}B" if data.market_cap else "N/A"}
 
 ---
 
-## Executive Summary
+## {_L("exec_summary", lang)}
 {data.tribunal.rationale if data.tribunal else 'N/A'}
 
 ---
 
-## Phase 0: The Gatekeeper (门槛熔断)
+## {_L("ph0", lang)}
 - **Macro Mode:** {data.gatekeeper.macro_mode.value if data.gatekeeper else 'N/A'}
 - **US 10Y Yield:** {f"{data.gatekeeper.us10y_yield:.2f}%" if data.gatekeeper and data.gatekeeper.us10y_yield else 'N/A'}
 - **VIX:** {f"{data.gatekeeper.vix_value:.1f}" if data.gatekeeper and data.gatekeeper.vix_value else 'N/A'}
-- **Sector Check:** {'✅ Passed' if data.gatekeeper and data.gatekeeper.sector_check_passed else '❌ Failed'}
-- **Future 20% Rule:** {'✅ Passed' if data.gatekeeper and data.gatekeeper.future_revenue_cagr_3y and data.gatekeeper.future_revenue_cagr_3y > 0.2 else '⚠️ Warning'}
+- **Sector Check:** {'✅ ' + _L("passed", lang) if data.gatekeeper and data.gatekeeper.sector_check_passed else '❌ ' + _L("failed", lang)}
+- **Future 20% Rule:** {'✅ ' + _L("passed", lang) if data.gatekeeper and data.gatekeeper.future_revenue_cagr_3y and data.gatekeeper.future_revenue_cagr_3y > 0.2 else '⚠️ Warning'}
 
 ---
 
-## Phase 1: Deep Audit (深度审计)
-- **Result:** {'✅ Passed' if data.deep_audit and data.deep_audit.passed else '❌ Failed'}
-- **Fail Reason:** {data.deep_audit.fail_reason if data.deep_audit and data.deep_audit.fail_reason else 'None'}
+## {_L("ph1", lang)}
+- **{_L("result", lang)}:** {'✅ ' + _L("passed", lang) if data.deep_audit and data.deep_audit.passed else '❌ ' + _L("failed", lang)}
+- **{_L("fail_reason", lang)}:** {data.deep_audit.fail_reason if data.deep_audit and data.deep_audit.fail_reason else _L("none", lang)}
 {deep_audit_details}
 
 ---
 
-## Phase 2: Shadow Audit (影子验证)
+## {_L("ph2", lang)}
 - **King Makers:** {'✅ Yes' if data.shadow_audit and data.shadow_audit.has_king_maker_clients else 'No'}
 - **Organic Growth:** {'✅ Confirmed' if data.shadow_audit and data.shadow_audit.organic_growth_confirmed else 'Unconfirmed'}
 - **Fake Tech:** {'⚠️ YES' if data.shadow_audit and data.shadow_audit.is_fake_tech else 'No'}
@@ -298,55 +378,55 @@ def generate_report_content_v35(data: CompanyData) -> str:
 
 ---
 
-## Phase 3: Intelligence (软性情报)
+## {_L("ph3", lang)}
 {intelligence_details}
 
 ---
 
-## Phase 4: Blue Sky (蓝天展望)
+## {_L("ph4", lang)}
 {blue_sky_details}
 
 ---
 
-## Phase 5: Catalysts & Waves (势能与催化)
+## {_L("ph5", lang)}
 {catalysts_details}
 
 ---
 
-## Phase 6: Strategic Pricing (战略定价)
+## {_L("ph6", lang)}
 {strategy_details}
 
 ---
 
-## Phase 7: Physics VPA (量价物理学)
-- **Signal:** {physics_status}
+## {_L("ph7", lang)}
+- **{_L("signal", lang)}:** {physics_status}
 {physics_details}
 
 ---
 
-## Phase 8: Final Tribunal (最终审判)
+## {_L("ph8", lang)}
 
-### Core Judgments
+### {_L("core_judgments", lang)}
 | Dimension | Result |
 |-----------|--------|
 | Growth Thesis Intact | {"✅ Yes" if data.tribunal and data.tribunal.growth_thesis_intact else "❌ No"} |
 | Valuation Fit | {"✅ Yes" if data.tribunal and data.tribunal.valuation_fit else "❌ No"} |
 | True Discount | {"✅ Yes" if data.tribunal and data.tribunal.is_true_discount else "❌ No"} |
 
-### 60-Second Checklist
+### {_L("checklist", lang)}
 {tribunal_checklist_md}
 
-### Macro-Adjusted Valuation
+### {_L("macro_val", lang)}
 {macro_val or "N/A"}
 
 ---
 
-## 🔗 References & Sources
+## 🔗 {_L("references", lang)}
 {references_md}
 
 ---
 
-## 📚 Appendix: Core Terminology
+## 📚 {_L("appendix", lang)}
 
 | Term | Definition |
 |------|------------|
@@ -360,7 +440,7 @@ def generate_report_content_v35(data: CompanyData) -> str:
 | **RVol** | Relative Volume = Today's Vol / 20-Day Avg Vol |
 
 ---
-*Generated by MGP V3.5 Blue Sky Engine*
+*{_L("generated_by", lang)}*
 """
     return content
 

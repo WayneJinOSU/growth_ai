@@ -37,15 +37,17 @@ from tools.yahoo import YahooClient
 from tools.deep_search import DeepSearchClient
 from core.data_models import CompanyData
 from phases.generate_report import generate_report_content_v35
+import config
 
 def analyze_ticker_v35(ticker: str, fmp: FMPClient, llm: LLMClient, search: SearchClient, yahoo: YahooClient,
-                       deep: DeepSearchClient, force_deep_dive: bool = False, deep_search: bool = False) -> CompanyData:
+                       deep: DeepSearchClient, force_deep_dive: bool = False, deep_search: bool = False,
+                       lang: str = "en") -> CompanyData:
     
     print(f"\n{'='*60}")
-    print(f"  MGP V3.5 Blue Sky Analysis: {ticker}")
+    print(f"  MGP V3.5 Blue Sky Analysis: {ticker} (lang={lang})")
     print(f"{'='*60}")
     
-    data = CompanyData(ticker=ticker, deep_search=deep_search, force_deep_dive=force_deep_dive)
+    data = CompanyData(ticker=ticker, deep_search=deep_search, force_deep_dive=force_deep_dive, report_language=lang)
     
     # Basic Info
     quote = fmp.get_quote(ticker)
@@ -151,6 +153,7 @@ def main():
     parser.add_argument("--force", action="store_true", help="Force deep dive")
     parser.add_argument("--scan_mid_cap", default=False,  action="store_true", help="Scan for Mid-Cap (10B-50B) stocks using FMP Screener")
     parser.add_argument("--deep_search", "-d", action="store_true", default=False, help="Enable Deep Search Mode (4-module intelligence system)")
+    parser.add_argument("--lang", type=str, default=config.REPORT_LANGUAGE, choices=["en", "zh"], help="Report language: en=English, zh=Chinese (default: config)")
     parser.add_argument("--limit", type=int, default=50, help="Limit number of stocks to analyze from screener")
     args = parser.parse_args()
     
@@ -194,12 +197,12 @@ def main():
     
     for ticker in tickers:
         try:
-            data = analyze_ticker_v35(ticker, fmp, llm, search, yahoo, deep_client, args.force, args.deep_search)
+            data = analyze_ticker_v35(ticker, fmp, llm, search, yahoo, deep_client, args.force, args.deep_search, lang=args.lang)
             results.append(data.model_dump())
             
             # Save Report
             if data.tribunal:
-                report = generate_report_content_v35(data)
+                report = generate_report_content_v35(data, lang=args.lang)
                 
                 # Ensure report directory exists
                 report_dir = "report"
