@@ -52,9 +52,14 @@ class SearchHelper:
                     new_refs.append(existing)
 
         context_parts = []
-        for r, ref in zip(results, new_refs):
-            content = r.get('content', '')
-            context_parts.append(f"[{ref.id}] {ref.title}: {content}")
+        for r in results:
+            if not r.get('url'):
+                continue
+            # Find the matching ref for this result
+            matching_ref = next((ref for ref in references if ref.url == r['url']), None)
+            if matching_ref:
+                content = r.get('content', '')
+                context_parts.append(f"[{matching_ref.id}] {matching_ref.title}: {content}")
         return "\n\n".join(context_parts)
 
     def unified_search(self, query: str, max_results: int = 5,

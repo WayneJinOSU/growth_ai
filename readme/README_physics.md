@@ -14,7 +14,7 @@
 
 ## 技术指标计算
 
-基于 FMP 历史日线 OHLCV 数据 (90 天窗口)，本地计算：
+基于 FMP 历史日线 OHLCV 数据 (至少 1 年窗口以满足 SMA200 需求)，本地计算：
 
 | 指标 | 公式 | 说明 |
 |------|------|------|
@@ -69,7 +69,7 @@
 
 当 LLMClient 可用时，额外执行 AI 增强分析：
 
-**输入:** 90 天原始 OHLCV JSON 数据
+**输入:** 完整的历史 OHLCV JSON 数据 (通常为最近 90 个交易日的切片用于近期形态研判)
 
 **分析框架:**
 1. **运动学 (Kinematics):** 趋势、速度、加速度、动量
@@ -93,7 +93,7 @@
   - ticker
 
 外部依赖:
-  - FMPClient → Historical Daily OHLCV (90 天)
+  - FMPClient → Historical Daily OHLCV (至少 1 年)
   - LLMClient → AI 物理动力学分析 (可选)
 
 输出:

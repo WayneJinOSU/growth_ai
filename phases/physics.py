@@ -18,6 +18,7 @@ from typing import List, Dict, Optional
 from datetime import datetime, timedelta
 from tools.llm import LLMClient
 from tools.fmp import FMPClient
+from tools.json_parser import JSONParser
 from core.data_models import PhysicsData
 import config
 
@@ -30,7 +31,8 @@ class Physics:
         self.fmp = fmp_client or FMPClient()
         self.llm = llm_client
 
-    def analyze(self, ticker: str) -> PhysicsData:
+    def analyze(self, data) -> PhysicsData:
+        ticker = data.ticker
         print(f"  [Phase 7] Physics VPA Analysis for {ticker} (V3.5 Blue Sky)...")
         
         # 1. Fetch Raw Data (OHLCV)
@@ -61,9 +63,10 @@ class Physics:
                 
                 # Align indicators if AI detected specific signals
                 if data.ai_conclusion:
-                    if "Ignition" in data.ai_conclusion: data.is_ignition = True
-                    if "Broken Trend" in data.ai_conclusion: data.is_broken_trend = True
-                    if "Accumulation" in data.ai_conclusion: data.is_accumulation = True
+                    conclusion_lower = data.ai_conclusion.lower()
+                    if "ignition" in conclusion_lower: data.is_ignition = True
+                    if "broken trend" in conclusion_lower: data.is_broken_trend = True
+                    if "accumulation" in conclusion_lower: data.is_accumulation = True
         
         return data
 
@@ -137,43 +140,33 @@ class Physics:
         3. Statics (Structure Analysis): Support/Resistance levels (the "floor" and "ceiling").
         4. Energy Conservation (VWAP/Deviation): Over-extension or mean reversion.
 
-        Output Requirements (STRICTLY FOLLOW, START WITH THESE LINES):
-        CONCLUSION: [One of: Ignition, Broken Trend, Accumulation, Divergence, Volatility Trap, Neutral]
-        RECOMMENDATION: [One of: Strong Buy, Buy, Wait, Observe, Sell]
-        ANALYSIS: [Detailed analysis in English using physical metaphors]
+        Output Requirements (STRICTLY FOLLOW):
+        Reply ONLY with a valid JSON object matching the following structure:
+        {{
+            "conclusion": "Ignition, Broken Trend, Accumulation, Divergence, Volatility Trap, or Neutral",
+            "recommendation": "Strong Buy, Buy, Wait, Observe, or Sell",
+            "analysis": "Detailed analysis in English using physical metaphors"
+        }}
         """
         
-        try:
-            response = self.llm.analyze_text(prompt, system_prompt="You are a senior technical analyst. Respond strictly in the required format.")
-            
-            ai_data = {}
-            # More robust parsing
-            lines = response.split('\n')
-            for line in lines:
-                upper_line = line.upper()
-                if 'CONCLUSION:' in upper_line:
-                    ai_data['conclusion'] = line.split(':', 1)[1].strip().replace('*', '')
-                elif 'RECOMMENDATION:' in upper_line:
-                    ai_data['recommendation'] = line.split(':', 1)[1].strip().replace('*', '')
-            
-            # Extract analysis part
-            if 'ANALYSIS:' in response:
-                ai_data['analysis'] = response.split('ANALYSIS:', 1)[1].strip()
-            else:
-                ai_data['analysis'] = response
-                
-            return ai_data
-        except Exception as e:
-            print(f"      [Error] AI Physics Analysis failed: {e}")
+        response = self.llm.analyze_text(prompt, system_prompt="You are a senior technical analyst. Respond strictly with JSON.")
+        if not response:
             return None
+        ai_data = JSONParser.parse_llm_json(response, default={})
+        return {
+            "conclusion": ai_data.get("conclusion", "Neutral").replace('*', ''),
+            "recommendation": ai_data.get("recommendation", "Wait").replace('*', ''),
+            "analysis": ai_data.get("analysis", "Analysis parsing failed.")
+        }
 
 physics = Physics()
 
 if __name__ == "__main__":
+    from core.data_models import CompanyData
     fmp = FMPClient()
     llm = LLMClient()
-    physics = Physics(fmp, llm)
-    print(physics.analyze('AXON'))
-
+    p = Physics(fmp, llm)
+    test_data = CompanyData(ticker='AXON')
+    print(p.analyze(test_data))
 
 

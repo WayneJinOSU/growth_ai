@@ -210,7 +210,7 @@ Domain Groups:
         extracted_data = {}
         
         # 只做 1-2 轮循环即可，避免过慢
-        for loop in range(2):
+        for loop in range(MAX_ECHO_LOOPS):
             # 1. Check gaps
             gaps = self._identify_gaps(ticker, extracted_data, full_context)
             if not gaps:

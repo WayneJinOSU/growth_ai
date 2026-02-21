@@ -12,8 +12,8 @@ from tools.llm import LLMClient
 from tools.search import SearchClient
 from tools.fmp import FMPClient
 from tools.search_helpers import SearchHelper
+from tools.json_parser import JSONParser
 from datetime import datetime
-import json
 from core.data_models import BlueSkyPhaseData, BlueSkyData, GatekeeperData, MacroMode, BusinessModel, DeepAuditData
 
 
@@ -56,36 +56,33 @@ class BlueSkyAnalyzer:
         self.deep = deep_client or DeepSearchClient()
         self.sh = SearchHelper(self.search, self.deep)
 
-    def analyze(self, ticker: str, gatekeeper_data: GatekeeperData = None,
-                references: list = None, deep_search: bool = False,
-                business_model: str = None) -> BlueSkyPhaseData:
+    def analyze(self, data) -> BlueSkyPhaseData:
         """
         Execute Phase 4: Blue Sky & Valuation
-
-        Args:
-            ticker: 股票代码
-            gatekeeper_data: Phase 0 宏观数据 (用于估值调整)
-            references: 全局引用列表
-            deep_search: 是否启用深度搜索
-            business_model: 商业模式字符串 (预留, 供未来 deep search 域名叠加)
         """
-        if references is None:
-            references = []
+        ticker = data.ticker
+        gatekeeper_data = data.gatekeeper
+        references = data.references
+        deep_search = data.deep_search
+        business_model = data.identifier.business_model if data.identifier else None
 
-        data = BlueSkyPhaseData()
+        result = BlueSkyPhaseData()
 
         print(f"  [Phase 4] Analyzing Blue Sky & Valuation for {ticker}...")
 
         # 1. Blue Sky Analysis - R&D & TAM
         print("    - Performing Blue Sky Analysis...")
-        data.blue_sky = self._analyze_blue_sky(ticker, references, deep_search)
+        result.blue_sky = self._analyze_blue_sky(ticker, references, deep_search)
 
         # 2. Macro-Adjusted Valuation
         if gatekeeper_data:
             print("    - [V3.5] Calculating Macro-Adjusted Valuation...")
-            data.macro_valuation_analysis = self._analyze_macro_adjusted_valuation(ticker, gatekeeper_data)
+            rule_of_40 = data.deep_audit.rule_of_40 if data.deep_audit else None
+            result.macro_valuation_analysis = self._analyze_macro_adjusted_valuation(
+                ticker, gatekeeper_data, business_model=business_model, rule_of_40=rule_of_40
+            )
 
-        return data
+        return result
 
     def _analyze_blue_sky(self, ticker: str, references: list,
                           deep_search: bool = False) -> BlueSkyData:
@@ -146,21 +143,12 @@ class BlueSkyAnalyzer:
             "is_strong_second_curve": true or false
         }}
         """
-        try:
-            tam_result = self.llm.analyze_text(prompt_tam).strip()
-            # Clean up potential markdown formatting
-            if tam_result.startswith("```json"):
-                tam_result = tam_result.replace("```json", "").replace("```", "").strip()
-            tam_data = json.loads(tam_result)
-            
-            blue_sky.tam_expansion = tam_data.get("tam_expansion", "N/A")
-            blue_sky.is_strong_second_curve = tam_data.get("is_strong_second_curve", False)
-            print(f"      TAM Expansion: {blue_sky.tam_expansion[:100]}...")
-            print(f"      Strong Second Curve Detected: {blue_sky.is_strong_second_curve}")
-        except Exception as e:
-            print(f"      [Warning] Failed to parse Blue Sky TAM/Trigger JSON: {e}")
-            blue_sky.tam_expansion = tam_result if 'tam_result' in locals() else "N/A"
-            blue_sky.is_strong_second_curve = False
+        tam_result = self.llm.analyze_text(prompt_tam).strip()
+        tam_data = JSONParser.parse_llm_json(tam_result, default={})
+        blue_sky.tam_expansion = tam_data.get("tam_expansion", "N/A")
+        blue_sky.is_strong_second_curve = tam_data.get("is_strong_second_curve", False)
+        print(f"      TAM Expansion: {blue_sky.tam_expansion[:100]}...")
+        print(f"      Strong Second Curve Detected: {blue_sky.is_strong_second_curve}")
 
 
         return blue_sky

@@ -66,7 +66,10 @@
 | Valuation Status | Phase 1 PEG vs peg_limit | Green (便宜) / Red (贵) |
 | Tier Level | Step 2 | Tier 1 / 2 / 3 |
 
-> **V3.5 SaaS 豁免：** 若 `BusinessModel = SaaS/Consumption` 且 `Rule of 40 ≥ 50%`，即使 PEG 超限，Valuation Status 仍强制为 **Green**。
+> **V3.5 Valuation 绿灯/红灯判定逻辑：**
+> 1. **PE Track (默认)：** `Valuation Status = Green` 当且仅当 `(Adjusted PE / Growth) ≤ PEG Limit`。
+> 2. **P/S Track (SaaS/Consumption)：** `Valuation Status = Green` 当且仅当 `Current P/S ≤ Phase 4 Target P/S`。
+> 3. **Rule of 40 极客豁免：** 若 `BusinessModel = SaaS/Consumption` 且 `Rule of 40 ≥ 50%`，无视当前估值，强制锁定为 **Green** (稀缺成长性溢价)。
 
 #### 决策矩阵
 

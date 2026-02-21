@@ -96,11 +96,14 @@ class DeepAudit:
             print(f"      [Error] LLM extraction failed for {metric_name}: {e}")
             return "N/A"
 
-    def identify_business_model(self, ticker: str, profile: dict) -> IdentifierData:
+    def identify_business_model(self, data, profile: dict = None) -> IdentifierData:
         """
         V3.5 Identity Engine: 确定公司的物理法则
         结合 FMP Profile 和 LLM 语义分析
         """
+        ticker = data.ticker
+        if profile is None:
+            profile = data.company_profile
         print(f"    - Identifying Business Model DNA...")
         
         # 1. 尝试规则判断 (快速路径)
@@ -151,10 +154,13 @@ class DeepAudit:
         except:
             return IdentifierData(business_model=BusinessModel.OTHER)
 
-    def analyze(self, ticker: str, identifier_data: IdentifierData = None, gatekeeper_data: GatekeeperData = None) -> DeepAuditData:
+    def analyze(self, data) -> DeepAuditData:
         """
         执行深度审计
         """
+        ticker = data.ticker
+        identifier_data = data.identifier
+        gatekeeper_data = data.gatekeeper
         print(f"  [Phase 1] Deep Audit for {ticker} (V3.5)...")
         
         metrics = DeepAuditData()
@@ -162,7 +168,7 @@ class DeepAudit:
         # Fetch Data
         income_annual = self.fmp.get_income_statement(ticker, period='annual', limit=5)
         income_quarterly = self.fmp.get_income_statement(ticker, period='quarter', limit=10)
-        cash_flow_quarterly = self.fmp.get_cash_flow_statement(ticker, period='quarter', limit=5)
+        cash_flow_quarterly = self.fmp.get_cash_flow_statement(ticker, period='quarter', limit=10)
         balance_sheet_quarterly = self.fmp.get_balance_sheet(ticker, period='quarter', limit=5)
         
         # Identity (如果外部未传入，则内部识别，但架构上建议 main 传入或在此处统一)
@@ -170,7 +176,7 @@ class DeepAudit:
         # 既然 DeepAudit 负责"针对不同模式体检"，它需要知道模式。
         if not identifier_data:
             profile = self.fmp.get_profile(ticker)
-            identifier_data = self.identify_business_model(ticker, profile)
+            identifier_data = self.identify_business_model(data, profile)
             
         model = identifier_data.business_model
         print(f"    - Audit Protocol: {model.value}")
@@ -245,6 +251,17 @@ class DeepAudit:
                 print(f"      RPO Growth: {rpo_raw} → {rpo_val:.0%}")
             else:
                 print(f"      RPO Growth: {rpo_raw}")
+
+        # --- PEG Ratio (from FMP ratios-ttm) ---
+        try:
+            ratios_ttm = self.fmp.get_ratios_ttm(ticker)
+            if ratios_ttm:
+                peg_val = ratios_ttm.get('priceEarningsToGrowthRatio')
+                if peg_val is not None and peg_val > 0:
+                    metrics.peg_ratio = peg_val
+                    print(f"      PEG Ratio (TTM): {peg_val:.2f}")
+        except Exception as e:
+            print(f"      [Warning] PEG Ratio fetch failed: {e}")
 
         # --- B. Consumption / Usage ---
         # Rule of 40: Rev Growth + FCF Margin
@@ -367,7 +384,7 @@ class DeepAudit:
         # 1. Growth Check (Integrate Phase 0 Gatekeeper rules)
         # Check Gatekeeper's findings
         cagr_issue = gatekeeper_data and not gatekeeper_data.cagr_passed
-        q_growth_issue = metrics.revenue_growth_current_q and metrics.revenue_growth_current_q < config.GROWTH_THRESHOLD_QUARTER
+        q_growth_issue = metrics.revenue_growth_current_q is not None and metrics.revenue_growth_current_q < config.GROWTH_THRESHOLD_QUARTER
         
         if cagr_issue or q_growth_issue:
             # Rule of 40 Exemption for SaaS/Consumption or high EPS growth

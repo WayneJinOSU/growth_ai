@@ -30,11 +30,15 @@ class ShadowAudit:
         self.deep = deep_client or DeepSearchClient()
         self.sh = SearchHelper(self.search, self.deep)
 
-    def audit(self, ticker: str, company_name: str, business_model: BusinessModel,
-              references: list = None, deep_search: bool = False) -> ShadowAuditData:
+    def audit(self, data) -> ShadowAuditData:
+        ticker = data.ticker
+        company_name = data.company_name
+        business_model = data.identifier.business_model if data.identifier else None
+        references = data.references
+        deep_search = data.deep_search
         print(f"  [Phase 2] Shadow Audit for {ticker} (V3.5)...")
         
-        data = ShadowAuditData()
+        result = ShadowAuditData()
         bm_value = business_model.value if business_model else None
         if references is None:
             references = []
@@ -87,18 +91,18 @@ class ShadowAudit:
                 
                 try:
                     llm_result = self.llm.analyze_text(prompt, system_prompt="You are a tech recruiter auditor.").strip()
-                    decision_part = llm_result.split('|')[0].strip()
+                    decision_part = llm_result.split('|')[0].strip().upper()
                     evidence_part = llm_result.split('|')[1].strip() if '|' in llm_result else "LLM Analysis"
                     
                     if "REAL_TECH" in decision_part:
-                        data.linkedin_hiring_audit = f"Active Tech Hiring Verified: {evidence_part}"
+                        result.linkedin_hiring_audit = f"Active Tech Hiring Verified: {evidence_part}"
                         print(f"      ✓ Tech Hiring Active ({evidence_part})")
                     elif "FAKE_TECH" in decision_part:
-                        data.is_fake_tech = True
-                        data.linkedin_hiring_audit = f"WARNING: Potential Fake Tech. {evidence_part}"
+                        result.is_fake_tech = True
+                        result.linkedin_hiring_audit = f"WARNING: Potential Fake Tech. {evidence_part}"
                         print(f"      ⚠️ Potential Fake Tech: {evidence_part}")
                     else:
-                        data.linkedin_hiring_audit = "Inconclusive hiring data"
+                        result.linkedin_hiring_audit = "Inconclusive hiring data"
                         print("      Inconclusive hiring data")
                         
                 except Exception as e:
@@ -108,10 +112,10 @@ class ShadowAudit:
                     combined = " ".join(r.get('content', '') for r in hiring_results).lower()
                     is_hiring_tech = any(k in combined for k in tech_keywords)
                     if is_hiring_tech:
-                        data.linkedin_hiring_audit = "Active Tech Hiring (Keyword Verified)"
+                        result.linkedin_hiring_audit = "Active Tech Hiring (Keyword Verified)"
                     else:
-                        data.is_fake_tech = True
-                        data.linkedin_hiring_audit = "No significant tech hiring found (Keyword Check)"
+                        result.is_fake_tech = True
+                        result.linkedin_hiring_audit = "No significant tech hiring found (Keyword Check)"
         
         # ========== 2. Path A: King Maker Validation ==========
         # 适用于 B2B, Hardware, SaaS
@@ -146,10 +150,7 @@ class ShadowAudit:
                     King Makers include: Apple, Microsoft, Nvidia, Amazon, Google, Meta, Tesla, or major Government/Defense agencies.
                     
                     Task:
-               if self.search:
-                # V3.5 Optimize: Longer horizon (365 days) and more results (8) for strategic partnerships
-                reg_res_km = self.search.search(query_client, max_results=8, days=365)
-                km_results.extend(reg_res_km)
+                    - List each King Maker relationship found, noting partner name, nature (customer/supplier/partner), and evidence strength.
                     - Use [ID] citations for every claim.
                     - If no significant relationships are found, reply exactly with "None". Do not explain why, do not speculate.
                     """
@@ -162,11 +163,11 @@ class ShadowAudit:
                         ).strip()
                         
                         if llm_result.lower() != "none" and len(llm_result) > 10:
-                            data.has_king_maker_clients = True
-                            data.customer_quality_audit = llm_result
+                            result.has_king_maker_clients = True
+                            result.customer_quality_audit = llm_result
                             print("      ✓ King Makers: Detailed audit performed")
                         else:
-                            data.customer_quality_audit = "No King Makers detected in public search"
+                            result.customer_quality_audit = "No King Makers detected in public search"
                             print("      No King Makers detected")
                     except Exception as e:
                         print(f"      [Warning] King Maker LLM audit failed: {e}")
@@ -174,10 +175,10 @@ class ShadowAudit:
                         king_makers = ["apple", "microsoft", "nvidia", "amazon", "google", "meta", "tesla", "government", "defense"]
                         found_kings = [k for k in king_makers if k in context.lower()]
                         if found_kings:
-                            data.has_king_maker_clients = True
-                            data.customer_quality_audit = f"King Makers found (Keyword Check): {', '.join(found_kings)}"
+                            result.has_king_maker_clients = True
+                            result.customer_quality_audit = f"King Makers found (Keyword Check): {', '.join(found_kings)}"
                         else:
-                            data.customer_quality_audit = "No King Makers detected"
+                            result.customer_quality_audit = "No King Makers detected"
 
         # ========== 3. Path B: Organic Growth Validation ==========
         # 适用于 B2C, Marketplace, App (V3.5+ B2B SaaS exception)
@@ -213,11 +214,11 @@ class ShadowAudit:
                     sm_trend += f" (SAAS Exception: Rev Growth {rev_growth_rate:.1%} > S&M Growth {sm_growth_rate:.1%})"
                 
                 if is_efficient:
-                    data.organic_growth_confirmed = True
-                    data.marketing_efficiency = f"Efficient (Organic): {sm_trend} with growing revenue"
+                    result.organic_growth_confirmed = True
+                    result.marketing_efficiency = f"Efficient (Organic): {sm_trend} with growing revenue"
                     print("      ✓ Organic Growth Confirmed")
                 else:
-                    data.marketing_efficiency = f"Inefficient (Bought Growth): {sm_trend}"
+                    result.marketing_efficiency = f"Inefficient (Bought Growth): {sm_trend}"
                     print("      ⚠️ Growth is likely paid (S&M rising faster)")
                     
             # 补充：App Store Rank 检查 (需特定 API，此处用 Search 模拟)
@@ -228,15 +229,15 @@ class ShadowAudit:
                 if results:
                     content = results[0].get('content', '').lower()
                     if "top" in content or "#1" in content or "most downloaded" in content:
-                        data.app_store_rank = "High Ranking Detected"
+                        result.app_store_rank = "High Ranking Detected"
                         print("      ✓ App Store Dominance Detected")
 
         # ========== 4. Sandbagging Detection (管理层沙袋检测) ==========
         # 适用于所有公司
         print("    - Checking for Sandbagging (Conservative Guidance)...")
         if self.search and self.llm:
-            # 使用 get_press_releases 锁定官方源进行沙袋检测 - 增加到 5 条以覆盖更多财报
-            results = self.search.get_press_releases(ticker, company_name=company_name, limit=5)
+            # 使用缓存的 press_releases (V3.5 优化: 避免重复搜索)
+            results = data.press_releases if data.press_releases else self.search.get_press_releases(ticker, company_name=company_name, limit=5)
             context = self.sh.collect_refs(results, references)
             
             if results:
@@ -263,18 +264,18 @@ class ShadowAudit:
                 """
                 
                 try:
-                    result = self.llm.analyze_text(prompt, system_prompt="You are a Wall Street analyst.")
+                    llm_result = self.llm.analyze_text(prompt, system_prompt="You are a Wall Street analyst.")
                     
-                    if "SANDBAGGING_DETECTED" in result.upper():
-                        data.sandbagging_detected = True
-                        data.sandbagging_details = "Management setting low bar (bullish signal)"
+                    if "SANDBAGGING_DETECTED" in llm_result.upper():
+                        result.sandbagging_detected = True
+                        result.sandbagging_details = "Management setting low bar (bullish signal)"
                         print("      ✓ Sandbagging Detected (Bullish - SNIPER Opportunity)")
                     else:
-                        data.sandbagging_details = "No sandbagging pattern"
+                        result.sandbagging_details = "No sandbagging pattern"
                         print("      No sandbagging detected")
                 except Exception as e:
                     print(f"      [Warning] Sandbagging check failed: {e}")
 
-        return data
+        return result
 
 shadowAudit = ShadowAudit()

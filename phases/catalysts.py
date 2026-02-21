@@ -19,6 +19,7 @@ V3.5 Blue Sky Edition
 from tools.llm import LLMClient
 from tools.search import SearchClient
 from tools.search_helpers import SearchHelper
+from tools.json_parser import JSONParser
 from datetime import datetime
 from core.data_models import CatalystData, SearchReference
 
@@ -66,35 +67,36 @@ class CatalystsAnalyzer:
 
     # ========== Main Entry ==========
 
-    def analyze(self, ticker: str, company_name: str = None,
-                references: list = None, deep_search: bool = False,
-                business_model: str = None) -> CatalystData:
+    def analyze(self, data) -> CatalystData:
         """
         Analyze Phase 5: Catalysts & Waves + Variant Perception
         """
-        data = CatalystData()
-        if references is None:
-            references = []
+        ticker = data.ticker
+        company_name = data.company_name
+        references = data.references
+        deep_search = data.deep_search
+        business_model = data.identifier.business_model.value if data.identifier else None
+        result = CatalystData()
 
         # ========== 1. Primary: Thematic Waves ==========
         print(f"    - [Phase 5] Identifying Thematic Waves for {ticker}...")
-        data.thematic_waves, data.wave_strength = self._identify_thematic_waves(
+        result.thematic_waves, result.wave_strength = self._identify_thematic_waves(
             ticker, company_name, references, deep_search, business_model
         )
 
         # ========== 2. Secondary: Hard Events ==========
         print(f"    - [Phase 5] Identifying Hard Events for {ticker}...")
-        data.upcoming_events, data.catalyst_analysis = self._identify_hard_events(
-            ticker, references, deep_search
+        result.upcoming_events, result.catalyst_analysis = self._identify_hard_events(
+            ticker, references, deep_search, press_releases=data.press_releases
         )
 
         # ========== 3. Variant Perception ==========
         print(f"    - [Phase 5] Analyzing Variant Perception for {ticker}...")
-        data.variant_perception = self._analyze_variant_perception(
+        result.variant_perception = self._analyze_variant_perception(
             ticker, references, deep_search
         )
 
-        return data
+        return result
 
     # ========== Sub-Modules ==========
 
@@ -144,51 +146,60 @@ class CatalystsAnalyzer:
         5. Regulatory Compliance → GRC/Identity Spending
 
         Output Format (STRICTLY follow):
-        WAVE: [The primary thematic wave, or "None" if not applicable]
-        STRENGTH: [High/Medium/Low/None]
-        RATIONALE: [1-2 sentences explaining why this wave applies]
+        Reply ONLY with a valid JSON object matching the following structure:
+        {{
+            "wave": "The primary thematic wave, or null if not applicable",
+            "strength": "High, Medium, Low, or null",
+            "rationale": "1-2 sentences explaining why this wave applies, or N/A"
+        }}
         
-        Use [ID] citations in RATIONALE if applicable.
+        Use [ID] citations in rationale if applicable.
 
         Example:
-        WAVE: Labor Shortage → AI/Automation Demand
-        STRENGTH: High
-        RATIONALE: Police departments face chronic staffing shortages; Axon's Draft One AI reduces report writing time by 80%, making it a mission-critical efficiency tool [1].
+        {{
+            "wave": "Labor Shortage → AI/Automation Demand",
+            "strength": "High",
+            "rationale": "Police departments face chronic staffing shortages; Axon's Draft One AI reduces report writing time by 80%, making it a mission-critical efficiency tool [1]."
+        }}
 
         CRITICAL: If the context lacks specific evidence of macro tailwinds, output:
-        WAVE: None
-        STRENGTH: None
-        RATIONALE: N/A
+        {{
+            "wave": null,
+            "strength": null,
+            "rationale": "N/A"
+        }}
         Do not speculate or fabricate connections.
         """
 
-        response = self.llm.analyze_text(prompt).strip()
+        response = self.llm.analyze_text(prompt, system_prompt="You are a strategic macro analyst. Respond strictly with JSON.").strip()
         print(f"      LLM Response: {response[:150]}...")
 
-        wave = "None"
-        strength = "None"
-        for line in response.split("\n"):
-            if line.strip().upper().startswith("WAVE:"):
-                wave = line.split(":", 1)[1].strip()
-            elif line.strip().upper().startswith("STRENGTH:"):
-                strength = line.split(":", 1)[1].strip()
+        wave_data = JSONParser.parse_llm_json(response, default={})
+        wave = wave_data.get("wave")
+        strength_raw = wave_data.get("strength")
 
-        if wave.lower() == "none" or not wave:
+        if wave and str(wave).lower() == "none":
             wave = None
-            strength = None
-        else:
+
+        if strength_raw:
             strength_map = {"high": "High", "medium": "Medium", "low": "Low"}
-            strength = strength_map.get(strength.lower(), "Medium")
+            strength = strength_map.get(str(strength_raw).lower(), "Medium")
+        else:
+            strength = None
+
+        rationale = wave_data.get("rationale", "N/A")
+        if rationale != "N/A":
+            print(f"      Wave Rationale: {rationale}")
 
         return wave, strength
 
     def _identify_hard_events(self, ticker: str, references: list = None,
-                              deep_search: bool = False) -> tuple[list, str]:
+                              deep_search: bool = False, press_releases: list = None) -> tuple[list, str]:
         """
         Identify upcoming hard catalyst events (earnings, product launches, investor days).
         """
         print("      Searching for official announcements...")
-        results = self.search.get_press_releases(ticker, limit=5)
+        results = press_releases if press_releases else self.search.get_press_releases(ticker, limit=5)
 
         if references is not None:
             context = self.sh.collect_refs(results, references)
@@ -231,10 +242,11 @@ class CatalystsAnalyzer:
         events_text = self.llm.analyze_text(
             prompt_events, system_prompt="List specific events only. Be concise."
         ).strip()
+        skip_patterns = {"none scheduled", "n/a", "none", "no events", "no upcoming events", "no events found"}
         events = [
             line.strip("- *")
             for line in events_text.split("\n")
-            if line.strip() and line.strip().lower() != "none scheduled"
+            if line.strip() and line.strip("- *").strip().lower() not in skip_patterns
         ]
         print(f"      Events: {events}")
 
@@ -287,14 +299,19 @@ class CatalystsAnalyzer:
         Is there a gap between Wall Street consensus and alternative data/reality?
         
         Output Requirements:
-        - Start directly with the core Variant Perception.
-        - NO "Based on the text".
-        - NO Markdown headers (e.g. ## Variant Perception).
+        Reply ONLY with a valid JSON object matching the following structure:
+        {{
+            "has_variant_perception": true/false,
+            "perception": "Detailed explanation of the variant perception, or 'N/A' if none."
+        }}
+        
         - Be provocative but grounded in data.
-        - IMPORTANT: Cite sources using [ID] format.
-        - CRITICAL: If the context lacks specific data to identify a variant perception, output ONLY "N/A". Do not speculate.
+        - IMPORTANT: Cite sources using [ID] format in the perception text.
+        - CRITICAL: If the context lacks specific data to identify a variant perception, output "has_variant_perception": false and "perception": "N/A". Do not speculate.
         """
-        result = self.llm.analyze_text(prompt).strip()
+        response = self.llm.analyze_text(prompt, system_prompt="You are a contrarian analyst. Respond strictly with JSON.").strip()
+        vp_data = JSONParser.parse_llm_json(response, default={})
+        result = vp_data.get("perception", "N/A")
         print(f"      Variant Perception: {result[:100]}...")
         return result
 
@@ -303,6 +320,7 @@ catalystsAnalyzer = CatalystsAnalyzer()
 if __name__ == "__main__":
     from tools.llm import LLMClient
     from tools.search import SearchClient
+    from core.data_models import CompanyData
     
     llm = LLMClient()
     search = SearchClient()
@@ -310,7 +328,8 @@ if __name__ == "__main__":
     
     ticker = "AXON"
     print(f"Testing Catalysts Analyzer for {ticker}...")
-    result = analyzer.analyze(ticker, company_name="Axon Enterprise")
+    test_data = CompanyData(ticker=ticker, company_name="Axon Enterprise")
+    result = analyzer.analyze(test_data)
     
     print("\n--- Thematic Waves ---")
     print(f"Wave: {result.thematic_waves}")

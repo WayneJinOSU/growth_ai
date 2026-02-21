@@ -34,8 +34,10 @@ class Tribunal:
         self.llm = llm_client or LLMClient()
         self.deep = deep_client or DeepSearchClient()
 
-    def judge(self, data: CompanyData, strategic_pricing: StrategicPricingData = None, deep_search: bool = False) -> TribunalDecision:
+    def judge(self, data: CompanyData) -> TribunalDecision:
         print(f"  [Phase 8] The Final Tribunal for {data.ticker} (V3.5 Blue Sky)...")
+        
+        strategic_pricing = data.strategic_pricing
         
         # ========== 60-Second Checklist ==========
         checklist = {}
@@ -186,7 +188,9 @@ class Tribunal:
             return True
         if data.blue_sky_phase and data.blue_sky_phase.blue_sky:
             bs = data.blue_sky_phase.blue_sky
-            return bool(bs.rnd_effectiveness or bs.tam_expansion)
+            rnd_valid = bs.rnd_effectiveness and bs.rnd_effectiveness.strip().upper() != "N/A"
+            tam_valid = bs.tam_expansion and bs.tam_expansion.strip().upper() != "N/A"
+            return bool(rnd_valid or tam_valid)
         return False
 
     def _check_strategic_match(self, data: CompanyData, pricing: StrategicPricingData) -> bool:

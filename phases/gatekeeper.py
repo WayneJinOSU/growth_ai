@@ -14,7 +14,7 @@ from typing import Optional, Dict
 from tools.fmp import FMPClient
 from tools.search import SearchClient
 from tools.yahoo import YahooClient
-from core.data_models import GatekeeperData, MacroMode
+from core.data_models import GatekeeperData, MacroMode, CompanyData
 import config
 
 
@@ -65,10 +65,11 @@ class Gatekeeper:
         
         return True, f"Sector: {sector}, Industry: {industry}"
 
-    def analyze(self, ticker: str) -> GatekeeperData:
+    def analyze(self, data: CompanyData) -> GatekeeperData:
         """
         执行 V3.5 前置过滤分析
         """
+        ticker = data.ticker
         print(f"  [Phase 0] Gatekeeper Analysis for {ticker} (V3.5)...")
         
         # ========== 1. 获取宏观数据 ==========
@@ -99,18 +100,17 @@ class Gatekeeper:
         future_cagr = self.yahoo.get_future_growth_estimates(ticker)
         
         cagr_passed = True
-        cagr_reason = "Passed"
         
         if future_cagr is not None:
-            # Convert decimal to percent for check
-            # Yahoo often returns e.g. 0.25 for 25%
-            # If > 1.0, might be percentage already? Usually it's decimal.
-            # Assuming decimal.
-            print(f"      Future Growth Est: {future_cagr:.1%}")
-            
-            if future_cagr < config.FUTURE_CAGR_THRESHOLD:
-                cagr_passed = False
-                cagr_reason = f"Future Growth {future_cagr:.1%} < {config.FUTURE_CAGR_THRESHOLD:.0%} Threshold"
+            try:
+                future_cagr = float(future_cagr)
+                print(f"      Future Growth Est: {future_cagr:.1%}")
+                
+                if future_cagr < config.FUTURE_CAGR_THRESHOLD:
+                    cagr_passed = False
+            except (ValueError, TypeError):
+                print(f"      [Warning] Future growth estimate '{future_cagr}' is invalid. Skipping Iron Rule check.")
+                future_cagr = None
         else:
             print("      [Warning] Future growth estimates unavailable. Skipping Iron Rule check.")
             

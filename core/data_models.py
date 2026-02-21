@@ -227,6 +227,14 @@ class CompanyData(BaseModel):
     current_price: Optional[float] = None
     market_cap: Optional[float] = None
 
+    # Runtime config (set by main.py)
+    deep_search: bool = False
+    force_deep_dive: bool = False
+
+    # Cached shared data (set once by main.py, read by all Phases)
+    company_profile: Optional[Dict[str, Any]] = None
+    press_releases: List[Dict[str, Any]] = Field(default_factory=list)
+
     # Phases
     gatekeeper: Optional[GatekeeperData] = None
     deep_audit: Optional[DeepAuditData] = None  # Renamed from iron_gate

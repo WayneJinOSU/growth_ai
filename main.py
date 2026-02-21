@@ -45,7 +45,7 @@ def analyze_ticker_v35(ticker: str, fmp: FMPClient, llm: LLMClient, search: Sear
     print(f"  MGP V3.5 Blue Sky Analysis: {ticker}")
     print(f"{'='*60}")
     
-    data = CompanyData(ticker=ticker)
+    data = CompanyData(ticker=ticker, deep_search=deep_search, force_deep_dive=force_deep_dive)
     
     # Basic Info
     quote = fmp.get_quote(ticker)
@@ -54,6 +54,7 @@ def analyze_ticker_v35(ticker: str, fmp: FMPClient, llm: LLMClient, search: Sear
         data.company_name = quote.get('name')
         data.current_price = quote.get('price')
         data.market_cap = quote.get('marketCap')
+    data.company_profile = profile
     
     print(f"  Company: {data.company_name}")
     print(f"  Price: ${data.current_price:.2f}" if data.current_price else "  Price: N/A")
@@ -61,7 +62,7 @@ def analyze_ticker_v35(ticker: str, fmp: FMPClient, llm: LLMClient, search: Sear
     # ========== Phase 0: Gatekeeper ==========
     print(f"\n[{ticker}] Phase 0: Gatekeeper...")
     gatekeeper = Gatekeeper(fmp, search, yahoo)
-    data.gatekeeper = gatekeeper.analyze(ticker)
+    data.gatekeeper = gatekeeper.analyze(data)
     
     is_mega_cap = data.market_cap and data.market_cap > 150_000_000_000
     if not data.gatekeeper.passed:
@@ -74,16 +75,20 @@ def analyze_ticker_v35(ticker: str, fmp: FMPClient, llm: LLMClient, search: Sear
         else:
             print(f"[{ticker}] Force Mode Active - Proceeding...")
 
+    # ========== Shared Data: Press Releases (cached once) ==========
+    print(f"\n[{ticker}] Caching Press Releases...")
+    data.press_releases = search.get_press_releases(ticker, company_name=data.company_name, limit=8)
+
     # ========== Phase 1: Deep Audit & Identity ==========
     print(f"\n[{ticker}] Phase 1: Deep Audit & Identity...")
     deep_audit = DeepAudit(fmp, llm, yahoo, search)
     
     # 1a. Identity
-    data.identifier = deep_audit.identify_business_model(ticker, profile)
+    data.identifier = deep_audit.identify_business_model(data)
     print(f"    - Business Model: {data.identifier.business_model.value}")
     
-    # 1b. Audit (V3.5: Pass gatekeeper data for CAGR/Rule-of-40 cross-check)
-    data.deep_audit = deep_audit.analyze(ticker, data.identifier, data.gatekeeper)
+    # 1b. Audit
+    data.deep_audit = deep_audit.analyze(data)
     
     if not data.deep_audit.passed:
         print(f"[{ticker}] ❌ Deep Audit Failed: {data.deep_audit.fail_reason}")
@@ -95,44 +100,41 @@ def analyze_ticker_v35(ticker: str, fmp: FMPClient, llm: LLMClient, search: Sear
         else:
             print(f"[{ticker}] Force Mode Active - Proceeding...")
 
-    bm_value = data.identifier.business_model.value if data.identifier else None
-
     # ========== Phase 2: Shadow Audit ==========
     print(f"\n[{ticker}] Phase 2: Shadow Audit...")
     shadow = ShadowAudit(search, fmp, llm)
-    data.shadow_audit = shadow.audit(ticker, data.company_name, data.identifier.business_model, data.references, deep_search=deep_search)
+    data.shadow_audit = shadow.audit(data)
     
     # ========== Phase 3: Intelligence ==========
     print(f"\n[{ticker}] Phase 3: Intelligence...")
     intel = Intelligence(llm, search, deep)
-    data.intelligence = intel.gather(ticker, data.identifier, data.references, deep_search=deep_search, business_model=bm_value)
+    data.intelligence = intel.gather(data)
 
     # ========== Phase 4: Blue Sky & Valuation ==========
     print(f"\n[{ticker}] Phase 4: Blue Sky & Valuation...")
     blue_sky_analyzer = BlueSkyAnalyzer(llm, search, fmp, deep)
-    data.blue_sky_phase = blue_sky_analyzer.analyze(ticker, data.gatekeeper, data.references, deep_search=deep_search, business_model=bm_value)
+    data.blue_sky_phase = blue_sky_analyzer.analyze(data)
 
     # ========== Phase 5: Catalysts & Waves ==========
     print(f"\n[{ticker}] Phase 5: Catalysts & Waves...")
     catalysts_analyzer = CatalystsAnalyzer(llm, search, deep)
-    catalyst_data = catalysts_analyzer.analyze(ticker, data.company_name, data.references, deep_search=deep_search, business_model=bm_value)
-    data.catalysts = catalyst_data
+    data.catalysts = catalysts_analyzer.analyze(data)
 
     # ========== Phase 6: Strategic Pricing ==========
     print(f"\n[{ticker}] Phase 6: Strategic Pricing...")
     strategy = StrategyAnalyzer()
-    data.strategic_pricing = strategy.analyze(data, catalyst_data)
+    data.strategic_pricing = strategy.analyze(data, data.catalysts)
     print(f"    - Strategic Definition: {data.strategic_pricing.strategic_definition.value if data.strategic_pricing.strategic_definition else 'N/A'}")
 
     # ========== Phase 7: Physics (VPA) ==========
     print(f"\n[{ticker}] Phase 7: Physics (VPA)...")
     physics = Physics(fmp, llm)
-    data.physics = physics.analyze(ticker)
+    data.physics = physics.analyze(data)
 
     # ========== Phase 8: Tribunal ==========
     print(f"\n[{ticker}] Phase 8: Final Tribunal...")
     tribunal = Tribunal(llm)
-    data.tribunal = tribunal.judge(data, data.strategic_pricing)
+    data.tribunal = tribunal.judge(data)
     
     print(f"\n{'='*60}")
     print(f"  FINAL VERDICT: {data.tribunal.decision.value}")

@@ -90,12 +90,17 @@ class StrategyAnalyzer:
         adjusted_pe = None
         adjustment_reason = None
 
-        # Get raw PE from deep_audit or gatekeeper
+        # Get raw PE from FMP key metrics or ratios
         raw_pe = None
         if data.deep_audit and data.deep_audit.peg_ratio:
-            # PEG is typically PE / Growth, we need to infer PE
-            # For simplicity, we'll use a placeholder logic
+            # PEG * growth ≈ PE, but we prefer direct PE from quote/metrics
             pass
+
+        # Try to get PE from quote data or profile
+        if data.company_profile:
+            pe_from_profile = data.company_profile.get('pe')
+            if pe_from_profile and pe_from_profile > 0:
+                raw_pe = pe_from_profile
 
         # Check for sandbagging/over-promising from shadow_audit or intelligence
         is_sandbagger = False
@@ -111,13 +116,18 @@ class StrategyAnalyzer:
             if "over-promis" in integrity_text or "miss" in integrity_text:
                 is_over_promiser = True
 
-        if is_sandbagger:
-            adjustment_reason = "Sandbagger Discount: PE adjusted -20% (hidden earnings)"
-            # In practice: PE * 0.8 = effective valuation looks cheaper
-        elif is_over_promiser:
-            adjustment_reason = "Over-Promiser Premium: PE adjusted +20% (risk premium)"
+        if raw_pe is not None:
+            if is_sandbagger:
+                adjusted_pe = raw_pe * 0.8
+                adjustment_reason = f"Sandbagger Discount: PE {raw_pe:.1f} → {adjusted_pe:.1f} (-20% hidden earnings)"
+            elif is_over_promiser:
+                adjusted_pe = raw_pe * 1.2
+                adjustment_reason = f"Over-Promiser Premium: PE {raw_pe:.1f} → {adjusted_pe:.1f} (+20% risk premium)"
+            else:
+                adjusted_pe = raw_pe
+                adjustment_reason = f"No adjustment applied (PE: {raw_pe:.1f})"
         else:
-            adjustment_reason = "No adjustment applied"
+            adjustment_reason = "PE data unavailable — no adjustment applied"
 
         print(f"      Adjustment: {adjustment_reason}")
         return adjusted_pe, adjustment_reason

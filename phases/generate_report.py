@@ -28,10 +28,10 @@ def generate_report_content_v35(data: CompanyData) -> str:
 ### Detailed Metrics
 | Metric | Value | Formula/Source |
 |--------|-------|----------------|
-| Revenue CAGR (N-Year) | {f"{da.revenue_cagr_ny:.1%}" if da.revenue_cagr_ny else "N/A"} | (Latest Rev / Oldest Rev)^(1/N) - 1 |
-| Q/Q Revenue Growth | {f"{da.revenue_growth_current_q:.1%}" if da.revenue_growth_current_q else "N/A"} | (Current Q Rev - YoY Q Rev) / YoY Q Rev |
-| SBC / Revenue | {f"{da.sbc_revenue_ratio:.1%}" if da.sbc_revenue_ratio else "N/A"} | TTM SBC / TTM Revenue |
-| Rule of 40 | {f"{da.rule_of_40:.1%}" if da.rule_of_40 else "N/A"} | Rev Growth + FCF Margin |
+| Revenue CAGR (N-Year) | {f"{da.revenue_cagr_ny:.1%}" if da.revenue_cagr_ny is not None else "N/A"} | (Latest Rev / Oldest Rev)^(1/N) - 1 |
+| Q/Q Revenue Growth | {f"{da.revenue_growth_current_q:.1%}" if da.revenue_growth_current_q is not None else "N/A"} | (Current Q Rev - YoY Q Rev) / YoY Q Rev |
+| SBC / Revenue | {f"{da.sbc_revenue_ratio:.1%}" if da.sbc_revenue_ratio is not None else "N/A"} | TTM SBC / TTM Revenue |
+| Rule of 40 | {f"{da.rule_of_40:.1%}" if da.rule_of_40 is not None else "N/A"} | Rev Growth + FCF Margin |
 | Inventory Health | {da.inventory_health or "N/A"} | Inv Days trend vs Gross Margin |
 | Insider Selling Risk | {"⚠️ YES" if da.insider_selling_risk else "No"} | Yahoo Finance Insider TX |
 """

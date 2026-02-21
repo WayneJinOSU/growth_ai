@@ -118,11 +118,10 @@ class FMPClient:
         }
         # 注意：endpoint 不需要末尾的 /
         data = self._get("historical-price-eod/full", params=params)
+        if not data or not isinstance(data, list):
+            return []
         data = sorted(data, key=lambda x: x['date'])
-        # API 返回格式通常是列表，直接返回即可
-        if isinstance(data, list):
-            return data
-        return []
+        return data
 
     def get_vix(self) -> Optional[float]:
         """

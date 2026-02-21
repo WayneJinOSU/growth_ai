@@ -32,24 +32,25 @@ class Intelligence:
         self.deep = deep_client or DeepSearchClient()
         self.sh = SearchHelper(self.search, self.deep)
 
-    def gather(self, ticker: str, identifier_data: IdentifierData,
-               references: list = None, deep_search: bool = False,
-               business_model: str = None) -> IntelligenceData:
+    def gather(self, data) -> IntelligenceData:
         """收集 Phase 3 数据"""
-        data = IntelligenceData()
-        if references is None:
-            references = []
+        ticker = data.ticker
+        identifier_data = data.identifier
+        references = data.references
+        deep_search = data.deep_search
+        business_model = data.identifier.business_model.value if data.identifier else None
+        result = IntelligenceData()
 
         deep_context = self._deep_enrich(ticker, references, business_model=business_model) if deep_search else ""
 
         print(f"  [Phase 3] Gathering Intelligence for {ticker}...")
-        data.kpi_values = self._verify_kpis(ticker, identifier_data.specific_kpis,
+        result.kpi_values = self._verify_kpis(ticker, identifier_data.specific_kpis,
                                              references, deep_context, deep_search)
-        data.management_integrity = self._analyze_management(ticker, references)
-        data.product_moat = self._analyze_moat(ticker, references, deep_search)
-        data.insider_activity = self._analyze_insider(ticker, references, deep_search)
-        data.dislocation_context = self._analyze_dislocation(ticker, references, deep_search)
-        return data
+        result.management_integrity = self._analyze_management(ticker, references, press_releases=data.press_releases)
+        result.product_moat = self._analyze_moat(ticker, references, deep_search)
+        result.insider_activity = self._analyze_insider(ticker, references, deep_search)
+        result.dislocation_context = self._analyze_dislocation(ticker, references, deep_search)
+        return result
 
     # ------------------------------------------------------------------
     # Sub-analyses
@@ -119,10 +120,10 @@ class Intelligence:
 
         return kpi_values
 
-    def _analyze_management(self, ticker: str, references: list) -> str:
+    def _analyze_management(self, ticker: str, references: list, press_releases: list = None) -> str:
         """2. Management Integrity"""
         print("    - Analyzing Management Integrity...")
-        res = self.search.get_press_releases(ticker, limit=5)
+        res = press_releases if press_releases else self.search.get_press_releases(ticker, limit=5)
         context = self.sh.collect_refs(res, references)
 
         if not context or len(context.strip()) < 50:
