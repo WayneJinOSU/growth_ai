@@ -256,7 +256,7 @@ class DeepAudit:
         try:
             ratios_ttm = self.fmp.get_ratios_ttm(ticker)
             if ratios_ttm:
-                peg_val = ratios_ttm.get('priceEarningsToGrowthRatio')
+                peg_val = ratios_ttm.get('priceToEarningsGrowthRatioTTM')
                 if peg_val is not None and peg_val > 0:
                     metrics.peg_ratio = peg_val
                     print(f"      PEG Ratio (TTM): {peg_val:.2f}")

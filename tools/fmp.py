@@ -247,4 +247,4 @@ if __name__ == "__main__":
     llmClient = LLMClient()
     # print(fMPClient.get_stock_news('AXON', llm=llmClient))
     print(fMPClient.get_historical_price_daily('AXON', from_date='2025-12-01', to_date='2026-01-28'))
-
+    print(fMPClient.get_ratios_ttm('AXON'))
