@@ -209,6 +209,20 @@ class FMPClient:
                     
         return news_list
 
+    def get_insider_trading(self, ticker: str, limit: int = 100) -> List[Dict]:
+        """
+        获取 SEC Form 4 内部人交易数据 (FMP /stable/insider-trading/search)
+        返回字段包括: symbol, filingDate, transactionDate, reportingName,
+        typeOfOwner, securitiesOwned, securitiesTransacted, price,
+        acquisitionOrDisposition, transactionType, securityName, url
+        """
+        params = {
+            'symbol': ticker,
+            'limit': limit,
+            'page': 0
+        }
+        return self._get("insider-trading/search", params=params) or []
+
     def get_stock_screener(self, market_cap_more_than: Optional[int] = None, market_cap_lower_than: Optional[int] = None, sector: Optional[str] = None, exchange: Optional[str] = None, limit: int = 100) -> List[Dict]:
         """
         股票筛选器

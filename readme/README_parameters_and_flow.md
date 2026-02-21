@@ -15,6 +15,9 @@
 | `RULE_OF_40_EXEMPTION` | **40.0%** | Deep Audit (Ph1) | `deep_audit.py` | 若 Rule of 40 ≥ 40%，**豁免**上述所有的增长红旗。 |
 | `EPS_GROWTH_EXEMPTION` | **20.0%** | Deep Audit (Ph1) | `deep_audit.py` | 若 EPS CAGR ≥ 20%，**豁免**上述所有的增长红旗 (证明有利润杠杆)。 |
 | `NDR_THRESHOLD` | **110.0%** | Deep Audit (Ph1) | `config.py` | SaaS 企业的净收入留存率下限，暂未使用于绝对拦截。 |
+| `INSIDER_SELL_COUNT_THRESHOLD` | **3** | Deep Audit (Ph1) | `config.py` | Operator (C-Level) 卖出超过 N 次触发三层深度分析（角色 → 力度 → 价格背离 → LLM）。 |
+| `INSIDER_INTENSITY_WARNING` | **20.0%** | Deep Audit (Ph1) | `config.py` | 单人抛售力度 > 20% 触发 WARNING；> 50% 触发 RED FLAG。 |
+| `INSIDER_PRICE_DROP_DANGER` | **-20.0%** | Deep Audit (Ph1) | `config.py` | 股价 6 个月跌幅超过此阈值 + 高管卖出 = 跳船信号 (Capitulation)。 |
 | `MAX_RED_FLAGS` | **2** | Deep Audit (Ph1) | `deep_audit.py` | 审计红旗的容忍上限。累计 ≥ 2 面红旗则 `passed = False`，触发硬性熔断。 |
 | `PEG_LIMIT_DEFAULT` | **2.0** | Strategy (Ph6) | `blue_sky.py` | 默认最多容忍两倍成长溢价。`Adjusted PE / Growth > 2.0` 即判定为 Valuation Red。 |
 | `PEG_LIMIT_BLUESKY` | **2.5** | Strategy (Ph6) | `strategy.py` | 若判定存在强第二曲线 (Blue Sky)，容忍上限放宽至 2.5。 |
@@ -52,7 +55,7 @@ graph TD
     Q1_Exempt -- "Rule of 40 > 40% OR<br>EPS CAGR > 20%" --> Exempt1[Exempt Growth Flag]:::bypass
     Q1_Exempt -- No Exemption --> FlagCount
     
-    Q1_Flags -- "Net Dilution > 5% +1 Flag<br>CFO Divergence +1 Flag<br>Insider Sell > 3 +1 Flag<br>Death Cross +2 Flags" --> FlagCount[Sum Flags]:::process
+    Q1_Flags -- "Net Dilution > 5% +1 Flag<br>CFO Divergence +1 Flag<br>Insider Risk (3-Layer + LLM) +1 Flag<br>Death Cross +2 Flags" --> FlagCount[Sum Flags]:::process
     Exempt1 --> FlagCount
 
     FlagCount --> Q1_Fail{Flags >= 2?}:::decision

@@ -115,6 +115,9 @@ class DeepAuditData(BaseModel):
     inventory_health: Optional[str] = None # Hard Tech
     take_rate_trend: Optional[str] = None # Marketplace
     insider_selling_risk: bool = False # Universal Lie Detector
+    insider_selling_message: Optional[str] = None # Detail note from Agent
+    insider_score: int = 0  # 0=clean, 1=routine, 2=warning, 3=red_flag
+    insider_details: Optional[Dict[str, Any]] = None  # Full breakdown for report
 
     eps_cagr_ny: Optional[float] = None # V3.5
     red_flags: int = 0 # V3.5 New: Fail only on multiple flags

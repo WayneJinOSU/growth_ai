@@ -172,8 +172,6 @@ class DeepAudit:
         balance_sheet_quarterly = self.fmp.get_balance_sheet(ticker, period='quarter', limit=5)
         
         # Identity (如果外部未传入，则内部识别，但架构上建议 main 传入或在此处统一)
-        # 为保持接口简洁，这里假设 main 可能会先调用 identify，或者 DeepAudit 自己搞定
-        # 既然 DeepAudit 负责"针对不同模式体检"，它需要知道模式。
         if not identifier_data:
             profile = self.fmp.get_profile(ticker)
             identifier_data = self.identify_business_model(data, profile)
@@ -181,7 +179,15 @@ class DeepAudit:
         model = identifier_data.business_model
         print(f"    - Audit Protocol: {model.value}")
         
-        # ========== 2. Historical Growth & Hygiene (Legacy Iron Gate) ==========
+        self._analyze_historical_growth(metrics, income_annual, income_quarterly, cash_flow_quarterly)
+        self._analyze_segment_specific(ticker, model, metrics, income_quarterly, cash_flow_quarterly, balance_sheet_quarterly)
+        cfo_divergence, insider_risk = self._analyze_lie_detector(ticker, metrics, income_quarterly, cash_flow_quarterly)
+        self._evaluate_pass_fail(metrics, gatekeeper_data, cfo_divergence, insider_risk)
+
+        return metrics
+
+    def _analyze_historical_growth(self, metrics: DeepAuditData, income_annual: list, income_quarterly: list, cash_flow_quarterly: list) -> None:
+        """========== 2. Historical Growth & Hygiene (Legacy Iron Gate) =========="""
         # CAGR (Rev & EPS)
         if income_annual and len(income_annual) > 1:
             try:
@@ -222,8 +228,10 @@ class DeepAudit:
             if rev > 0:
                 metrics.sbc_revenue_ratio = sbc / rev
                 print(f"      SBC/Rev Backup: {metrics.sbc_revenue_ratio:.1%}")
-                
-        # ========== 3. Segment Specific Audit (V3.5) ==========
+
+    def _analyze_segment_specific(self, ticker: str, model: BusinessModel, metrics: DeepAuditData, 
+                                  income_quarterly: list, cash_flow_quarterly: list, balance_sheet_quarterly: list) -> None:
+        """========== 3. Segment Specific Audit (V3.5) =========="""
         
         # --- A. SaaS / Cyber / AI Software ---
         if model == BusinessModel.SAAS:
@@ -334,7 +342,8 @@ class DeepAudit:
             else:
                 print(f"      Take Rate: {take_rate_raw}")
 
-        # ========== 4. Universal Lie Detector (V3.5) ==========
+    def _analyze_lie_detector(self, ticker: str, metrics: DeepAuditData, income_quarterly: list, cash_flow_quarterly: list) -> tuple:
+        """========== 4. Universal Lie Detector (V3.5) =========="""
         
         # A. CFO Divergence (NI vs CFO)
         cfo_divergence = False
@@ -365,18 +374,289 @@ class DeepAudit:
                 cfo_divergence = True
                 print("      ⚠️ CFO DIVERGENCE: TTM NI Grew >20% but CFO Declined")
         
-        # B. Insider Selling (Yahoo)
+        # B. Insider Selling (Institutional-Grade 3-Layer Analysis via FMP)
         insider_risk = False
-        insider_tx = self.yahoo.get_insider_roster(ticker)
+        insider_tx = self.fmp.get_insider_trading(ticker, limit=100)
+        
         if insider_tx:
-            sells = [t for t in insider_tx if 'Sale' in t.get('transaction', '') or 'Sell' in t.get('transaction', '')]
-            if len(sells) > 3: 
-                insider_risk = True
-                print(f"      ⚠️ INSIDER RISK: {len(sells)} recent sell transactions")
+            insider_risk, insider_score, insider_msg, insider_details = self._analyze_insider_selling(
+                ticker, insider_tx
+            )
         
         metrics.insider_selling_risk = insider_risk
+        metrics.insider_score = insider_score if insider_tx else 0
+        metrics.insider_selling_message = insider_msg if insider_tx else None
+        metrics.insider_details = insider_details if insider_tx else None
         
-        # ========== 5. Pass/Fail Logic (V3.5 Red Flag System) ==========
+        return cfo_divergence, insider_risk
+
+    # ==================== Insider Selling Sub-Methods ====================
+
+    # C-Level titles that represent operators (high weight)
+    # Use regex word-boundary patterns to avoid substring collisions (e.g., 'cto' in 'director')
+    _C_LEVEL_PATTERNS = [
+        r'\bceo\b', r'\bcfo\b', r'\bcoo\b', r'\bcto\b', r'\bcmo\b', r'\bcio\b', r'\bcpo\b',
+        r'\bchief\b', r'\bpresident\b', r'\bevp\b', r'\bsvp\b', r'\bfounder\b',
+        r'\bexecutive vice president\b', r'\bsenior vice president\b',
+        r'\bgeneral counsel\b', r'\btreasurer\b'
+    ]
+    # Financial investor titles (low weight / ignore)
+    _INVESTOR_PATTERNS = [r'\b10%', r'\bowner\b', r'\bdirector\b']
+
+    def _classify_owner_role(self, type_of_owner: str) -> str:
+        """
+        Layer 1: 角色权重过滤
+        Returns 'operator' (high risk) or 'investor' (low risk / ignorable)
+        """
+        owner_lower = (type_of_owner or '').lower()
+        # Check C-Level first
+        for pattern in self._C_LEVEL_PATTERNS:
+            if re.search(pattern, owner_lower):
+                return 'operator'
+        # Check investor keywords
+        for pattern in self._INVESTOR_PATTERNS:
+            if re.search(pattern, owner_lower):
+                # Double-check: they might also hold a C-Level role (e.g., "10% Owner, CEO")
+                for c_pattern in self._C_LEVEL_PATTERNS:
+                    if re.search(c_pattern, owner_lower):
+                        return 'operator'
+                return 'investor'
+        return 'unknown'
+
+    def _calc_disposition_intensity(self, shares_sold: int, shares_owned_after: int) -> float:
+        """
+        Layer 2: 身家性命占比
+        Intensity = Shares_Sold / (Shares_Owned_After + Shares_Sold)
+        """
+        total = shares_owned_after + shares_sold
+        if total <= 0:
+            return 0.0
+        return shares_sold / total
+
+    def _get_price_return_6m(self, ticker: str) -> float:
+        """
+        Layer 3: 获取过去 6 个月的股价涨跌幅
+        Returns float, e.g. -0.25 means down 25%
+        """
+        from datetime import datetime, timedelta
+        today = datetime.now()
+        from_date = (today - timedelta(days=180)).strftime('%Y-%m-%d')
+        to_date = today.strftime('%Y-%m-%d')
+
+        prices = self.fmp.get_historical_price_daily(ticker, from_date, to_date)
+        if not prices or len(prices) < 2:
+            return 0.0
+
+        # prices sorted ascending by date
+        oldest_close = prices[0].get('close', 0)
+        latest_close = prices[-1].get('close', 0)
+        if oldest_close <= 0:
+            return 0.0
+        return (latest_close - oldest_close) / oldest_close
+
+    def _analyze_insider_selling(self, ticker: str, insider_tx: list) -> tuple:
+        """
+        机构级内部人售卖分析 (Institutional-Grade Insider Selling Analysis)
+        
+        Layer 1: 角色权重 — Operator vs Investor
+        Layer 2: 抛售力度 — Disposition Intensity
+        Layer 3: 价格行为背离 — Selling into Strength vs Weakness
+        Final:   LLM Agent — 10b5-1 / Tax / Panic verdict
+        
+        Returns: (insider_risk: bool, score: int, message: str, details: dict)
+        """
+        # ---- Filter: only Disposition (sells), exclude M-Exempt (option exercise) ----
+        sells = [
+            t for t in insider_tx
+            if t.get('acquisitionOrDisposition') == 'D'
+            and t.get('transactionType') in ('S-Sale', 'S-Sale+OE')
+            and t.get('securityName', '').lower().startswith('common stock')
+        ]
+        
+        if not sells:
+            print("      ✓ No insider sells detected.")
+            return False, 0, None, None
+        
+        # ===== Layer 1: Role-Weight Filtering =====
+        operator_sells = []
+        investor_sells = []
+        for s in sells:
+            role = self._classify_owner_role(s.get('typeOfOwner', ''))
+            s['_role'] = role
+            if role == 'operator':
+                operator_sells.append(s)
+            else:
+                investor_sells.append(s)
+        
+        print(f"      [Insider] Total sells: {len(sells)} | Operators: {len(operator_sells)} | Investors/Other: {len(investor_sells)}")
+        
+        # If only investors (VC/PE exit), low risk
+        if not operator_sells:
+            print("      ✓ Only investor/VC exits, no operator sells. PASS.")
+            return False, 0, "Only VC/PE exits", {
+                'total_sells': len(sells),
+                'operator_sells': 0,
+                'investor_sells': len(investor_sells),
+                'verdict': 'PASS - investor exit only'
+            }
+        
+        # Check threshold: need > N operator sells to warrant deep analysis
+        if len(operator_sells) <= config.INSIDER_SELL_COUNT_THRESHOLD:
+            print(f"      ✓ Operator sells ({len(operator_sells)}) below threshold ({config.INSIDER_SELL_COUNT_THRESHOLD}). PASS.")
+            return False, 0, None, None
+        
+        print(f"      [Insider] {len(operator_sells)} operator sells exceed threshold. Deep analysis...")
+        
+        # ===== Layer 2: Disposition Intensity ("Skin in the Game") =====
+        # Group by person, calculate per-person intensity
+        person_intensity = {}
+        for s in operator_sells:
+            name = s.get('reportingName', 'Unknown')
+            shares_sold = abs(s.get('securitiesTransacted', 0))
+            shares_after = s.get('securitiesOwned', 0)
+            intensity = self._calc_disposition_intensity(shares_sold, shares_after)
+            
+            if name not in person_intensity:
+                person_intensity[name] = {
+                    'title': s.get('typeOfOwner', ''),
+                    'total_sold': 0,
+                    'max_intensity': 0.0,
+                    'transactions': 0
+                }
+            person_intensity[name]['total_sold'] += shares_sold
+            person_intensity[name]['max_intensity'] = max(person_intensity[name]['max_intensity'], intensity)
+            person_intensity[name]['transactions'] += 1
+        
+        # Find the worst offender
+        max_intensity = 0.0
+        worst_person = None
+        for name, info in person_intensity.items():
+            if info['max_intensity'] > max_intensity:
+                max_intensity = info['max_intensity']
+                worst_person = name
+            print(f"        {name} ({info['title']}): {info['transactions']} sells, "
+                  f"max intensity {info['max_intensity']:.1%}")
+        
+        # Score based on intensity
+        intensity_score = 0  # 0=clean
+        if max_intensity >= config.INSIDER_INTENSITY_RED_FLAG:
+            intensity_score = 3
+            print(f"      🚩 CRITICAL: {worst_person} disposed >{config.INSIDER_INTENSITY_RED_FLAG:.0%} of holdings!")
+        elif max_intensity >= config.INSIDER_INTENSITY_WARNING:
+            intensity_score = 2
+            print(f"      ⚠️ WARNING: {worst_person} disposed >{config.INSIDER_INTENSITY_WARNING:.0%} of holdings")
+        elif max_intensity >= config.INSIDER_INTENSITY_PASS:
+            intensity_score = 1
+            print(f"      ✓ Minor: Max intensity {max_intensity:.1%} (asset allocation range)")
+        else:
+            print(f"      ✓ Negligible: Max intensity {max_intensity:.1%}")
+        
+        # ===== Layer 3: Price Behavior Divergence =====
+        price_return_6m = self._get_price_return_6m(ticker)
+        print(f"      [Insider] 6M Price Return: {price_return_6m:.1%}")
+        
+        selling_into_weakness = False
+        if price_return_6m <= config.INSIDER_PRICE_DROP_DANGER and len(operator_sells) > config.INSIDER_SELL_COUNT_THRESHOLD:
+            selling_into_weakness = True
+            # Bump up score if selling into weakness
+            intensity_score = max(intensity_score, 2)
+            print(f"      🚩 DANGER: Operators selling while stock down {price_return_6m:.1%}! (Capitulation signal)")
+        elif price_return_6m > 0.30:
+            # Stock near ATH, selling is more forgivable
+            if intensity_score >= 2:
+                intensity_score = max(intensity_score - 1, 1)
+            print(f"      ✓ Stock up {price_return_6m:.1%} in 6M. Selling is rational profit-taking.")
+
+        # ===== Build context for LLM Agent =====
+        # Aggregate data summary for the prompt
+        top_sellers = sorted(person_intensity.items(), key=lambda x: x[1]['max_intensity'], reverse=True)[:5]
+        sellers_summary = "\n".join([
+            f"  - {name} ({info['title']}): {info['transactions']} sells, "
+            f"max single-txn intensity {info['max_intensity']:.1%}, total shares sold: {info['total_sold']:,}"
+            for name, info in top_sellers
+        ])
+        
+        # ===== Final: LLM Agent Verdict (Search + Judge) =====
+        if intensity_score >= 2:
+            print(f"      [Insider] Score={intensity_score}. Agent searching for context...")
+            query = f"{ticker} insider executive selling reason 10b5-1 tax plan stock sale"
+            try:
+                results = self.search.search(query, max_results=5, days=90)
+                news_context = "\n".join([
+                    f"- {r.get('title', '')}: {r.get('content', '')}" for r in results
+                ])[:3000] if results else "No relevant news found."
+                
+                prompt = f"""
+                Company {ticker} has significant insider selling activity.
+                
+                QUANTITATIVE FACTS (from SEC Form 4):
+                - 6-Month Price Return: {price_return_6m:.1%}
+                - Selling into weakness: {"YES" if selling_into_weakness else "NO"}
+                - Top sellers:
+                {sellers_summary}
+                
+                CONTEXT RULES for your judgment:
+                1. WHO? Is this a Founder/CEO/CFO selling, or early investor (VC/PE) exiting?
+                2. HOW MUCH? Is this a liquidation (>50% of holdings), or nibbling (<5%)?
+                3. TIMING? Are they selling after a big run-up (profit taking), or during a decline (capitulation)?
+                4. Is there any evidence of a 10b5-1 pre-planned trading plan?
+                
+                NEWS CONTEXT:
+                {news_context}
+                
+                Based on ALL evidence above, output one of:
+                - "PASS - <brief reason>" if routine (10b5-1, tax, option exercise, small %, profit taking after rally)
+                - "WARNING - <brief reason>" if ambiguous but not alarming
+                - "FAIL - <brief reason>" if panic selling, capitulation, or unexplained large disposal
+                """
+                
+                decision = self.llm.analyze_text(
+                    prompt, system_prompt="You are an institutional equity analyst specializing in insider trading patterns."
+                ).strip()
+                
+                if decision.upper().startswith("FAIL"):
+                    insider_risk = True
+                    final_score = max(intensity_score, 3)
+                    reason = decision.split("-", 1)[-1].strip() if "-" in decision else "Unexplained insider selling"
+                    print(f"      🚩 INSIDER VERDICT: FAIL - {reason}")
+                elif decision.upper().startswith("WARNING"):
+                    insider_risk = False  # Not a hard fail, but tracked
+                    final_score = max(intensity_score, 2)
+                    reason = decision.split("-", 1)[-1].strip() if "-" in decision else "Ambiguous insider selling"
+                    print(f"      ⚠️ INSIDER VERDICT: WARNING - {reason}")
+                else:
+                    insider_risk = False
+                    final_score = min(intensity_score, 1)
+                    reason = decision.split("-", 1)[-1].strip() if "-" in decision else "Routine/10b5-1"
+                    print(f"      ✓ INSIDER VERDICT: PASS - {reason}")
+                    
+            except Exception as e:
+                print(f"      [Insider] Agent failed: {e}. Using quantitative score only.")
+                insider_risk = intensity_score >= 3
+                final_score = intensity_score
+                reason = f"Agent failed, quant score={intensity_score}"
+        else:
+            insider_risk = False
+            final_score = intensity_score
+            reason = "Below alert threshold"
+            print(f"      ✓ INSIDER CLEARED: Score={intensity_score}, no agent needed.")
+        
+        details = {
+            'total_sells': len(sells),
+            'operator_sells': len(operator_sells),
+            'investor_sells': len(investor_sells),
+            'max_intensity': max_intensity,
+            'worst_person': worst_person,
+            'price_return_6m': price_return_6m,
+            'selling_into_weakness': selling_into_weakness,
+            'person_breakdown': {name: info for name, info in top_sellers},
+            'verdict': reason
+        }
+        
+        return insider_risk, final_score, reason, details
+
+    def _evaluate_pass_fail(self, metrics: DeepAuditData, gatekeeper_data: GatekeeperData, cfo_divergence: bool, insider_risk: bool) -> None:
+        """========== 5. Pass/Fail Logic (V3.5 Red Flag System) =========="""
         passed = True
         reasons = []
         red_flags = 0
@@ -395,7 +675,7 @@ class DeepAudit:
                 print("      ✓ Growth Exemption Activated (Rule of 40 / EPS leverage)")
             else:
                 red_flags += 1
-                reasons.append(f"🚩 Low Growth (CAGR/Q-Growth) & No Profit Leverage")
+                reasons.append("🚩 Low Growth (CAGR/Q-Growth) & No Profit Leverage")
              
         # 2. SBC / Dilution Check
         if metrics.share_count_growth and metrics.share_count_growth > 0.05:
@@ -412,7 +692,8 @@ class DeepAudit:
              
         if insider_risk:
             red_flags += 1
-            reasons.append("🚩 Insider Selling Risk (>3 trans)")
+            msg = metrics.insider_selling_message or ">3 trans"
+            reasons.append(f"🚩 Insider Selling Risk ({msg})")
         
         if metrics.inventory_health == "DEATH CROSS":
             red_flags += 2  # Critical failure
@@ -438,7 +719,5 @@ class DeepAudit:
                 print("    - Deep Audit PASSED")
         else:
             print(f"    - Deep Audit FAILED (Red Flags >= 2): {metrics.fail_reason}")
-
-        return metrics
 
 deepAudit = DeepAudit()  # default clients; main.py passes explicit clients

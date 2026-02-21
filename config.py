@@ -51,6 +51,13 @@ RULE_OF_40_THRESHOLD = 0.40 # Rev Growth + FCF Margin
 SBC_THRESHOLD_STRICT = 0.20 # 20% max
 SBC_THRESHOLD_KILL = 0.25   # 25% automatic kill
 
+# V3.5 Insider Selling (Institutional-Grade)
+INSIDER_SELL_COUNT_THRESHOLD = 3  # API 初筛：> N 次 C-Level sale 触发 Agent
+INSIDER_INTENSITY_PASS = 0.05     # < 5%: 资产配置，PASS
+INSIDER_INTENSITY_WARNING = 0.20  # > 20%: 重大减持，WARNING
+INSIDER_INTENSITY_RED_FLAG = 0.50 # > 50%: 清仓式出逃，RED FLAG
+INSIDER_PRICE_DROP_DANGER = -0.20 # 股价跌 > 20% 期间卖出 = 跳船信号
+
 # Profitability
 MIN_NET_MARGIN_FOR_PEG = 0.03
 PEG_THRESHOLD_STRONG_BUY = 1.0

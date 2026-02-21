@@ -24,17 +24,55 @@ def generate_report_content_v35(data: CompanyData) -> str:
     deep_audit_details = ""
     if data.deep_audit:
         da = data.deep_audit
+
+        # Insider Analysis Sub-Section
+        insider_status = "No" 
+        if da.insider_selling_risk:
+            insider_status = "🚩 RED FLAG"
+        elif da.insider_score >= 2:
+            insider_status = "⚠️ WARNING"
+        elif da.insider_score == 1:
+            insider_status = "✓ Minor"
+        
+        insider_sub = ""
+        if da.insider_details:
+            d = da.insider_details
+            insider_sub = f"""
+#### Insider Selling Breakdown (Institutional-Grade)
+| Dimension | Value |
+|-----------|-------|
+| Total Sells (Form 4) | {d.get('total_sells', 'N/A')} |
+| Operator (C-Level) Sells | {d.get('operator_sells', 'N/A')} |
+| Investor (VC/PE/Director) Sells | {d.get('investor_sells', 'N/A')} |
+| Max Disposition Intensity | {f"{d['max_intensity']:.1%}" if d.get('max_intensity') is not None else 'N/A'} |
+| Worst Offender | {d.get('worst_person', 'N/A')} |
+| 6M Price Return | {f"{d['price_return_6m']:.1%}" if d.get('price_return_6m') is not None else 'N/A'} |
+| Selling into Weakness | {"🚩 YES" if d.get('selling_into_weakness') else "No"} |
+| **LLM Verdict** | **{d.get('verdict', 'N/A')}** |
+"""
+        elif da.insider_selling_message:
+            insider_sub = f"\n> **Insider Note:** {da.insider_selling_message}\n"
+        
         deep_audit_details = f"""
 ### Detailed Metrics
 | Metric | Value | Formula/Source |
 |--------|-------|----------------|
 | Revenue CAGR (N-Year) | {f"{da.revenue_cagr_ny:.1%}" if da.revenue_cagr_ny is not None else "N/A"} | (Latest Rev / Oldest Rev)^(1/N) - 1 |
+| EPS CAGR (N-Year) | {f"{da.eps_cagr_ny:.1%}" if da.eps_cagr_ny is not None else "N/A"} | (Latest EPS / Oldest EPS)^(1/N) - 1 |
 | Q/Q Revenue Growth | {f"{da.revenue_growth_current_q:.1%}" if da.revenue_growth_current_q is not None else "N/A"} | (Current Q Rev - YoY Q Rev) / YoY Q Rev |
+| PEG Ratio (TTM) | {f"{da.peg_ratio:.2f}" if da.peg_ratio is not None else "N/A"} | FMP Ratios TTM |
 | SBC / Revenue | {f"{da.sbc_revenue_ratio:.1%}" if da.sbc_revenue_ratio is not None else "N/A"} | TTM SBC / TTM Revenue |
+| Net Dilution (YoY) | {f"{da.share_count_growth:.1%}" if da.share_count_growth is not None else "N/A"} | Diluted Shares YoY Change |
 | Rule of 40 | {f"{da.rule_of_40:.1%}" if da.rule_of_40 is not None else "N/A"} | Rev Growth + FCF Margin |
+| NDR | {f"{da.ndr:.0%}" if da.ndr is not None else "N/A"} | SaaS Net Dollar Retention |
+| RPO Growth | {f"{da.rpo_growth:.0%}" if da.rpo_growth is not None else "N/A"} | SaaS RPO YoY |
 | Inventory Health | {da.inventory_health or "N/A"} | Inv Days trend vs Gross Margin |
-| Insider Selling Risk | {"⚠️ YES" if da.insider_selling_risk else "No"} | Yahoo Finance Insider TX |
-"""
+| Book-to-Bill | {f"{da.book_to_bill:.2f}x" if da.book_to_bill is not None else "N/A"} | Hardware demand signal |
+| Take Rate Trend | {da.take_rate_trend or "N/A"} | Marketplace monetization |
+| Insider Selling | {insider_status} (Score: {da.insider_score}/3) | FMP SEC Form 4 + 3-Layer Analysis |
+| Red Flags Total | {da.red_flags} | ≥ 2 = FAIL |
+{insider_sub}"""
+
     
     # Build Shadow Audit Details
     shadow_audit_details = ""
@@ -53,6 +91,13 @@ def generate_report_content_v35(data: CompanyData) -> str:
     intelligence_details = ""
     if data.intelligence:
         intel = data.intelligence
+        
+        # KPI Values sub-section
+        kpi_md = ""
+        if intel.kpi_values:
+            kpi_lines = [f"| {k} | {v} |" for k, v in intel.kpi_values.items()]
+            kpi_md = "\n### Key Performance Indicators\n| KPI | Value |\n|-----|-------|\n" + "\n".join(kpi_lines)
+        
         intelligence_details = f"""
 ### Management Integrity
 {intel.management_integrity or "N/A"}
@@ -62,6 +107,10 @@ def generate_report_content_v35(data: CompanyData) -> str:
 
 ### Insider Activity
 {intel.insider_activity or "N/A"}
+
+### Dislocation Context
+{intel.dislocation_context or "N/A"}
+{kpi_md}
 """
     
     # Build Blue Sky Details (Phase 4)
@@ -74,6 +123,8 @@ def generate_report_content_v35(data: CompanyData) -> str:
 
 ### Second Growth Curve (R&D Effectiveness)
 {bs.rnd_effectiveness or "N/A"}
+
+- **Strong Second Curve Confirmed:** {"✅ Yes" if bs.is_strong_second_curve else "No"}
 """
 
     # Build Catalysts & Waves Details (Phase 5)
@@ -93,6 +144,10 @@ def generate_report_content_v35(data: CompanyData) -> str:
 
 **Analysis:**
 {cat.catalyst_analysis or "N/A"}
+
+### Supplementary Signals
+- **Variant Perception:** {cat.variant_perception or "N/A"}
+- **Coattail Effect:** {cat.coattail_effect or "N/A"}
 """
 
     # Build Strategic Pricing Details (Phase 6)
@@ -101,7 +156,8 @@ def generate_report_content_v35(data: CompanyData) -> str:
         sp = data.strategic_pricing
         strategy_details = f"""
 ### Step 1: Valuation Scrub
-{sp.adjustment_reason or "No adjustment"}
+- **Adjusted PE:** {f"{sp.adjusted_pe:.1f}" if sp.adjusted_pe is not None else "N/A"}
+- **Reason:** {sp.adjustment_reason or "No adjustment"}
 
 ### Step 2: Fortress Test (Tier Level)
 **Tier:** {sp.tier_level.value if sp.tier_level else "N/A"}
@@ -130,17 +186,22 @@ def generate_report_content_v35(data: CompanyData) -> str:
 |-----------|-------|-----------|
 | Current Price | ${(p.current_price if p.current_price else 0):.2f} | - |
 | SMA 20 | ${(p.sma_20 if p.sma_20 else 0):.2f} | 生命线 (Life Line) |
+| SMA 50 | ${(p.sma_50 if p.sma_50 else 0):.2f} | 中期趋势线 |
+| SMA 200 | ${(p.sma_200 if p.sma_200 else 0):.2f} | 长期趋势线 |
 | Relative Volume | {f"{p.relative_volume:.1f}x" if p.relative_volume else "N/A"} | Vol / Avg Vol 20 |
 | Daily Range | {f"{p.daily_range*100:.1f}%" if p.daily_range else "N/A"} | (High - Low) / Close |
 | Close Strength | {f"{p.close_strength:.1%}" if p.close_strength else "N/A"} | (Close - Low) / (High - Low) |
 | Price vs SMA20 | {"Above ✅" if p.current_price and p.sma_20 and p.current_price > p.sma_20 else "Below ⚠️"} | Trend |
+| Days Below SMA20 | {p.days_below_sma20} | 连续跌破天数 |
+| Days Below SMA50 | {p.days_below_sma50} | 连续跌破天数 |
 
 ### Signal Analysis
 | Form | Feature | Meaning | Status |
 |------|---------|---------|--------|
 | 📦 Accumulation | Range < 2% + RVol > 1.5 | Quiet Accumulation | {"✅ DETECTED" if p.is_accumulation else "NOT MET"} |
 | 🚀 Ignition | Price > SMA20 + RVol > 2.0 + Strong Close | Momentum Ignition | {"✅ DETECTED" if p.is_ignition else "NOT MET"} |
-| 📉 Broken Trend | Close < SMA20 for 3+ days | Trend Death | {"⚠️ YES" if p.is_broken_trend else "NO"} |
+| 📉 Broken Trend | Close < SMA50 for 3+ days | Trend Death | {"⚠️ YES" if p.is_broken_trend else "NO"} |
+| ⚡ High Risk | High RVol on down days | Institutional Dumping | {"⚠️ YES" if p.is_high_risk else "NO"} |
 """
         
         if p.ai_analysis:
@@ -199,12 +260,12 @@ def generate_report_content_v35(data: CompanyData) -> str:
         references_md = "No external references cited."
 
 
-    content = f"""# MGP V3.5 Blue Sky Report: {data.ticker}
+    content = f"""# MGP V3.5 Blue Sky Report: {data.ticker}{f" — {data.company_name}" if data.company_name else ""}
 **Date:** {datetime.now().strftime("%Y-%m-%d")}
-**Verdict:** {decision}
+**Verdict:** {decision} ({data.tribunal.confidence.value if data.tribunal else "N/A"} Confidence)
 **Strategic Definition:** {strategic_def or "N/A"}
 **Physics:** {physics_status}
-**Price:** ${(data.current_price if data.current_price else 0):.2f}
+**Price:** ${(data.current_price if data.current_price else 0):.2f} | **Market Cap:** {f"${data.market_cap/1e9:.1f}B" if data.market_cap else "N/A"}
 
 ---
 
@@ -264,6 +325,13 @@ def generate_report_content_v35(data: CompanyData) -> str:
 ---
 
 ## Phase 8: Final Tribunal (最终审判)
+
+### Core Judgments
+| Dimension | Result |
+|-----------|--------|
+| Growth Thesis Intact | {"✅ Yes" if data.tribunal and data.tribunal.growth_thesis_intact else "❌ No"} |
+| Valuation Fit | {"✅ Yes" if data.tribunal and data.tribunal.valuation_fit else "❌ No"} |
+| True Discount | {"✅ Yes" if data.tribunal and data.tribunal.is_true_discount else "❌ No"} |
 
 ### 60-Second Checklist
 {tribunal_checklist_md}
